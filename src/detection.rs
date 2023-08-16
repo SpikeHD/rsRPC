@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-#[derive( Deserialize)]
+#[derive(Deserialize, Clone)]
 pub struct DetectableActivity {
     #[serde(rename = "bot_public")]
     pub bot_public: Option<bool>,
@@ -54,14 +54,14 @@ pub struct DetectableActivity {
     pub tags: Vec<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Developer {
     pub id: String,
     pub name: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Executable {
     #[serde(rename = "is_launcher")]
@@ -71,13 +71,13 @@ pub struct Executable {
     pub arguments: Option<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub struct Publisher {
     pub id: String,
     pub name: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub struct ThirdPartySku {
     pub distributor: String,
     pub id: Option<String>,

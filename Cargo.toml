@@ -12,6 +12,7 @@ path = "src/lib.rs"
 sysinfo = "0.29.8"
 serde = { version = "1.0.166", features = ["derive"] }
 serde_json = "1.0.105"
+port_scanner = "0.1.5"
 
 # binary-only
 clap = { version = "4.3.21", features = ["derive"], optional = true }

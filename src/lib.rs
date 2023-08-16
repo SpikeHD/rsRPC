@@ -51,12 +51,12 @@ impl RPCServer {
   }
 
   pub fn start(self) {
-    let mut process_server = ProcessServer::new();
+    let mut process_server = ProcessServer::new(self.detectable);
 
     if self.process_scan_ms.is_some() {
       process_server.scan_wait_ms = self.process_scan_ms.unwrap();
     }
 
-    process_server.scan_for_processes(&self.detectable);
+    process_server.scan_for_processes();
   }
 }

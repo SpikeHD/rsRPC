@@ -1,3 +1,4 @@
+use std::time::Duration;
 use std::vec;
 
 use serde_json::Value;
@@ -9,18 +10,46 @@ use super::super::DetectableActivity;
 
 pub struct ProcessServer {
   base: BaseServer,
-  detected_list: Vec<String>,
+  detected_list: Vec<DetectableActivity>,
 
   // ms to wait in between each process scan
   pub scan_wait_ms: u64,
+  pub detectable_list: Vec<DetectableActivity>,
 }
 
 impl ProcessServer {
-  pub fn new() -> Self {
+  pub fn new(detectable: Vec<DetectableActivity>) -> Self {
     ProcessServer {
       base: BaseServer::new(),
       detected_list: vec![],
       scan_wait_ms: 1,
+      detectable_list: detectable,
+    }
+  }
+
+  pub fn start(&mut self) {
+    // Run the process scan repeatedly (every 3 seconds)
+    loop {
+      let detected = self.scan_for_processes();
+
+      // If the detected list has changed, send a message to the main thread
+      for activity in &detected {
+        // Check for matching name properties
+        let mut found = false;
+
+        for detected_activity in &self.detected_list {
+          if detected_activity.name == activity.name {
+            found = true;
+            break;
+          }
+        }
+
+        if !found {
+          // TODO: if anything changes, pass message to the main thread
+        }
+      }
+
+      std::thread::sleep(Duration::from_secs(3));
     }
   }
 
@@ -35,7 +64,7 @@ impl ProcessServer {
     processes
   }
 
-  pub fn scan_for_processes(mut self, detectable: &Vec<DetectableActivity>) {
+  pub fn scan_for_processes(&mut self) -> Vec<DetectableActivity> {
     println!("Process scan triggered");
     let processes = ProcessServer::process_list();
     let mut detected_list = vec![];
@@ -51,7 +80,7 @@ impl ProcessServer {
         possibilities.push(process.split(".").collect::<Vec<&str>>()[0].to_string());
       }
 
-      for obj in detectable {
+      for obj in &self.detectable_list {
         // if executables is null, just skip
         if obj.executables.is_none() {
           continue;
@@ -62,8 +91,9 @@ impl ProcessServer {
           // Check each possibility
           for possibility in &possibilities {
             // If this game is not in the list of already detected games, and the executable name matches, add
-            if executable.name == *possibility && !self.detected_list.contains(&possibility) {
-              detected_list.push(possibility.to_string());
+            if executable.name == *possibility {
+              // Push the whole game
+              detected_list.push(obj.clone());
             }
           }
         }
@@ -71,11 +101,11 @@ impl ProcessServer {
     }
 
     // Processes found:
-    for process in &detected_list {
-      println!("Found process: {}", process);
+    for activity in &detected_list {
+      println!("Found process: {}", activity.name);
     }
 
     // Overwrite self.detected_list with the new list
-    self.detected_list = detected_list;
+    detected_list
   }
 }
