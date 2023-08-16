@@ -13,6 +13,13 @@ sysinfo = "0.29.8"
 serde = { version = "1.0.166", features = ["derive"] }
 serde_json = "1.0.105"
 
+# binary-only
+clap = { version = "4.3.21", features = ["derive"], optional = true }
+
 [[bin]]
 name = "rsrpc"
 path = "src/bin.rs"
+required-features = ["clap"]
+
+[features]
+binary = ["clap"]
