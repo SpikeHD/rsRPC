@@ -1,0 +1,12 @@
+[package]
+name = "rsrpc"
+version = "0.1.0"
+authors = ["spikehd"]
+
+[lib]
+name = "rsrpc"
+path = "src/lib.rs"
+
+[[bin]]
+name = "rsrpc"
+path = "src/main.rs"
