@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use detection::DetectableActivity;
 use serde_json::Value;
-use server::{process::ProcessServer, websocket::WebsocketServer};
+use server::{process::ProcessServer, client_connector::WebsocketServer};
 
 mod server;
 mod detection;
