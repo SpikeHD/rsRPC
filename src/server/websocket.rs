@@ -1,5 +1,6 @@
 use std::net::SocketAddr;
 use std::error::Error;
+use std::time::Duration;
 use futures_util::{SinkExt, StreamExt};
 use async_tungstenite::accept_async;
 use port_scanner::local_port_available;
@@ -56,30 +57,13 @@ impl WebsocketServer {
     
     let ws_stream = accept_async(stream).await.expect("Failed to accept");
 
-    // Write some data to the stream
-    let (mut write, _) = ws_stream.split();
-  
-    let s = "{
-      \"cmd\": \"DISPATCH\",
-      \"evt\": \"READY\",
-      \"data\": {
-        \"v\": 1,
-        \"user\": {
-          \"id\": \"1045800378228281345\",
-          \"username\": \"arRPC\",
-          \"discriminator\": \"0000\",
-          \"avatar\": \"cfefa4d9839fb4bdf030f91c2a13e95c\",
-          \"flags\": 0,
-          \"premium_type\": 0
-        },
-        \"config\": {
-          \"api_endpoint\": \"//discord.com/api\",
-          \"cdn_host\": \"cdn.discordapp.com\",
-          \"environment\": \"production\"
-        }
-      }
-    }";
+    // Keep stream open
+    let (mut write, mut read) = ws_stream.split();
     
-    write.send(s.into()).await.expect("Failed to send");
+    while let Some(msg) = read.next().await {
+      let msg = msg.expect("Failed to get message");
+      println!("Received a message from {}: {}", addr, msg);
+      //write.send(msg).await.expect("Failed to send message");
+    }
   }
 }
