@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use detection::DetectableActivity;
 use serde_json::Value;
-use server::process::ProcessServer;
+use server::{process::ProcessServer, websocket::WebsocketServer};
 
 mod server;
 mod detection;
@@ -57,6 +57,16 @@ impl RPCServer {
       process_server.scan_wait_ms = self.process_scan_ms.unwrap();
     }
 
-    process_server.scan_for_processes();
+    let ws_thread = std::thread::spawn(move || {
+      let ws = WebsocketServer::new().unwrap();
+      
+      ws.start().unwrap();
+    });
+
+    let process_thread = std::thread::spawn(move || {
+      process_server.start();
+    });
+
+    ws_thread.join();
   }
 }
