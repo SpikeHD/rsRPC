@@ -16,23 +16,7 @@ pub struct WebsocketServer {
 
 impl WebsocketServer {
   pub fn new() -> Result<Self, std::io::Error> {
-    let port_range = ( 6463, 6472 );
-    let mut port = 0;
-
-    // Scan for available ports in range
-    for p in port_range.0..port_range.1 {
-      if local_port_available(port) {
-        port = p;
-        println!("Found available port: {}", port);
-        break;
-      }
-    }
-
-    if port == 0 {
-      panic!("No port available in range: {:?}", port_range);
-    }
-
-    port = 1337;
+    let port = 1337;
 
     Ok(Self {
       base: BaseServer::new(),
