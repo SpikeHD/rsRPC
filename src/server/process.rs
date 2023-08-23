@@ -5,11 +5,9 @@ use serde_json::Value;
 use sysinfo::SystemExt;
 use sysinfo::ProcessExt;
 
-use super::base::BaseServer;
 use super::super::DetectableActivity;
 
 pub struct ProcessServer {
-  base: BaseServer,
   detected_list: Vec<DetectableActivity>,
 
   // ms to wait in between each process scan
@@ -20,7 +18,6 @@ pub struct ProcessServer {
 impl ProcessServer {
   pub fn new(detectable: Vec<DetectableActivity>) -> Self {
     ProcessServer {
-      base: BaseServer::new(),
       detected_list: vec![],
       scan_wait_ms: 1,
       detectable_list: detectable,
