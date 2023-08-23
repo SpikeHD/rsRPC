@@ -23,7 +23,12 @@ impl ClientConnector {
     self.server = Some(Server::bind(format!("127.0.0.1:{}", self.port)).unwrap());
     self.server.as_mut().unwrap().set_nonblocking(true).unwrap();
 
-    let connection_data = self.connection_data.as_ref().unwrap().clone();
+    println!("Server running on port: {}", self.port);
+
+    let connection_data = match self.connection_data {
+      Some(ref data) => data,
+      None => "",
+    };
 
     // Whenever we get a connection, assign the writer to the writer field.
     for request in self.server.as_mut().unwrap().filter_map(Result::ok) {
