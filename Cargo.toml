@@ -17,7 +17,8 @@ sysinfo = "0.29.8"
 serde = { version = "1.0.166", features = ["derive"] }
 serde_json = "1.0.105"
 port_scanner = "0.1.5"
-websocket = "0.26.5"
+simple-websockets = "0.1.6"
+chrono = "0.4.29"
 
 [[bin]]
 name = "rsrpc"

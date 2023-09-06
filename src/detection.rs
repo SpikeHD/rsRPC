@@ -52,6 +52,7 @@ pub struct DetectableActivity {
     pub deeplink_uri: Option<String>,
     #[serde(default)]
     pub tags: Vec<String>,
+    pub pid: Option<u64>,
 }
 
 #[derive(Deserialize, Clone)]

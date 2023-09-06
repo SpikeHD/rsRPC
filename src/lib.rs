@@ -52,7 +52,31 @@ impl RPCServer {
 
   pub fn start(self) {
     let mut process_server = ProcessServer::new(self.detectable);
-    let mut client_connector = ClientConnector::new(1337);
+    let client_connector = ClientConnector::new(
+      1337,
+      r#"
+      {
+        "cmd": "DISPATCH",
+        "evt": "READY",
+        "data": {
+          "v": 1,
+          "user": {
+            "id": "1045800378228281345",
+            "username": "arRPC",
+            "discriminator": "0000",
+            "avatar": "cfefa4d9839fb4bdf030f91c2a13e95c",
+            "flags": 0,
+            "premium_type": 0
+          },
+          "config": {
+            "api_endpoint": "//discord.com/api",
+            "cdn_host": "cdn.discordapp.com",
+            "environment": "production"
+          }
+        }
+      }
+      "#.to_string(),
+    );
 
     client_connector.start();
 
@@ -60,8 +84,8 @@ impl RPCServer {
       process_server.scan_wait_ms = self.process_scan_ms.unwrap();
     }
 
-    let process_thread = std::thread::spawn(move || {
-      process_server.start();
-    });
+    process_server.start();
+
+    loop {};
   }
 }

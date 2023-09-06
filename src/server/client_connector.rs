@@ -1,55 +1,51 @@
-use std::net::TcpListener;
+use std::{collections::HashMap, sync::{Mutex, Arc}};
 
-use websocket::{server::{sync::Server, WsServer, NoTlsAcceptor}, Message};
+use simple_websockets::{Event, Responder, EventHub, Message};
 
 pub struct ClientConnector {
-  port: u16,
-  server: Option<WsServer<NoTlsAcceptor, TcpListener>>,
-  writer: Option<websocket::sender::Writer<std::net::TcpStream>>,
-  connection_data: Option<String>,
+  server: Arc<Mutex<EventHub>>,
+  clients: HashMap<u64, Responder>,
+  data_on_connect: String,
 }
 
 impl ClientConnector {
-  pub fn new(port: u16) -> ClientConnector {
+  pub fn new(port: u16, data_on_connect: String) -> ClientConnector {
     ClientConnector {
-      port,
-      server: None,
-      writer: None,
-      connection_data: None,
+      server: Arc::new(Mutex::new(simple_websockets::launch(port).unwrap())),
+      clients: HashMap::new(),
+      data_on_connect: data_on_connect,
     }
   }
 
-  pub fn start(&mut self) {
-    self.server = Some(Server::bind(format!("127.0.0.1:{}", self.port)).unwrap());
-    self.server.as_mut().unwrap().set_nonblocking(true).unwrap();
+  pub fn start(mut self) {
+    std::thread::spawn(move || {
+      loop {
+        match self.server.lock().unwrap().poll_event() {
+          Event::Connect(client_id, responder) => {
+            println!("Client {} connected", client_id);
 
-    println!("Server running on port: {}", self.port);
+            // Send initial connection data
+            responder.send(Message::Text(self.data_on_connect.clone()));
 
-    let connection_data = match self.connection_data {
-      Some(ref data) => data,
-      None => "",
-    };
-
-    // Whenever we get a connection, assign the writer to the writer field.
-    for request in self.server.as_mut().unwrap().filter_map(Result::ok) {
-      let result = match request.accept() {
-        Ok(wsupgrade) => {
-          let (mut _read, write) = wsupgrade.split().unwrap();
-
-          self.writer = Some(write);
-          Ok(())
-        },
-        Err(_) => {
-          println!("Error accepting connection");
-          Err(())
-        },
-      };
-    }
+            self.clients.insert(client_id, responder);
+          },
+          Event::Disconnect(client_id) => {
+            self.clients.remove(&client_id);
+          },
+          Event::Message(client_id, message) => {
+            println!("Received message from client {}: {:?}", client_id, message);
+            let responder = self.clients.get(&client_id).unwrap();
+            responder.send(message);
+          },
+        }
+      }
+    });
   }
 
   pub fn send_data(&mut self, data: String) {
-    if self.writer.is_some() {
-      self.writer.as_mut().unwrap().send_message(&Message::text(data)).unwrap();
+    // Send data to all clients
+    for (_, responder) in self.clients.iter() {
+      responder.send(Message::Text(data.clone()));
     }
   }
 }
