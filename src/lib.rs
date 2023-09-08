@@ -8,7 +8,6 @@ mod detection;
 
 
 pub struct RPCServer {
-  socket_id: u32,
   detectable: Vec<DetectableActivity>,
 
   // Milliseconds to wait between each processes scan. Good for limiting CPU usage.
@@ -26,7 +25,6 @@ impl RPCServer {
     }).collect();
 
     Self {
-      socket_id: 0,
       detectable,
       process_scan_ms: None,
     }
@@ -44,7 +42,6 @@ impl RPCServer {
     let detectable: Vec<DetectableActivity> = detectable.as_array().unwrap().iter().map(|x| {serde_json::from_value(x.clone()).unwrap()}).collect();
 
     Self {
-      socket_id: 0,
       detectable,
       process_scan_ms: None,
     }
