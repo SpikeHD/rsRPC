@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::{Mutex, Arc}, ops::DerefMut};
+use std::{collections::HashMap, sync::{Mutex, Arc}};
 
 use simple_websockets::{Event, Responder, EventHub, Message};
 
