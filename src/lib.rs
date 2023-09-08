@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 use detection::DetectableActivity;
 use serde_json::Value;
 use server::{process::ProcessServer, client_connector::{ClientConnector, self}};
@@ -52,7 +52,7 @@ impl RPCServer {
 
   pub fn start(self) {
     let mut process_server = ProcessServer::new(self.detectable);
-    let client_connector = ClientConnector::new(
+    let mut client_connector = ClientConnector::new(
       1337,
       r#"
       {
