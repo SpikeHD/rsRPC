@@ -86,8 +86,27 @@ impl RPCServer {
 
     loop {
       let event = proc_event_receiver.recv().unwrap();
+      let activity = event.activity;
 
-      println!("Detected process: {:?}", event.activity.name);
+      println!("Detected process: {:?}", activity.name);
+
+      client_connector.send_data(format!(
+        r#"
+        {{
+          "cmd": "SET_ACTIVITY",
+          "args": {{
+            "activity": {{
+              "application_id": {},
+              "name": "{}",
+              "timestamps": {{
+                start: "{}"
+              }}
+            }},
+            "pid": "{}"
+          }}
+        }}
+        "#, activity.id, activity.name, chrono::Utc::now().to_rfc3339(), activity.pid.unwrap_or_default()
+      ))
     };
   }
 }

@@ -120,7 +120,7 @@ impl ProcessServer {
           // Check each possibility
           for possibility in &possibilities {
             // If this game is not in the list of already detected games, and the executable name matches, add
-            if executable.name == *possibility.name {
+            if executable.name.to_lowercase() == *possibility.name.to_lowercase() {
               // Push the whole game
               let mut new_activity = obj.clone();
               new_activity.pid = Some(process.pid);
@@ -129,25 +129,6 @@ impl ProcessServer {
           }
         }
       }
-    }
-
-    // Processes found:
-    for activity in &detected_list {
-      println!(r#"
-      {{
-        "cmd": "SET_ACTIVITY",
-        "args": {{
-          "activity": {{
-            "application_id": {},
-            "name": "{}",
-            "timestamps": {{
-              start: "{}"
-            }}
-          }},
-          "pid": "{}"
-        }}
-      }}
-      "#, activity.id, activity.name, chrono::Utc::now().to_rfc3339(), activity.pid.unwrap_or_default());
     }
 
     // Overwrite self.detected_list with the new list
