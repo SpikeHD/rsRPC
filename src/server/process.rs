@@ -1,5 +1,6 @@
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::mpsc;
 use std::time::Duration;
 use std::vec;
 
@@ -14,20 +15,27 @@ pub struct Exec {
   name: String,
 }
 
+#[derive(Clone)]
+pub struct ProcessDetectedEvent {
+  pub activity: DetectableActivity,
+}
+
 pub struct ProcessServer {
   detected_list: Arc<Mutex<Vec<DetectableActivity>>>,
 
   // ms to wait in between each process scan
   pub scan_wait_ms: u64,
   pub detectable_list: Vec<DetectableActivity>,
+  pub event_sender: mpsc::Sender<ProcessDetectedEvent>,
 }
 
 impl ProcessServer {
-  pub fn new(detectable: Vec<DetectableActivity>) -> Self {
+  pub fn new(detectable: Vec<DetectableActivity>, event_sender: mpsc::Sender<ProcessDetectedEvent>) -> Self {
     ProcessServer {
       detected_list: Arc::new(Mutex::new(vec![])),
       scan_wait_ms: 1,
       detectable_list: detectable,
+      event_sender: event_sender,
     }
   }
 
@@ -40,18 +48,21 @@ impl ProcessServer {
         // If the detected list has changed, send a message to the main thread
         for activity in &detected {
           // Check for matching name properties
-          let mut found = false;
+          let mut found = None;
           let detected = self.detected_list.lock().unwrap();
 
           for detected_activity in detected.iter() {
             if detected_activity.name == activity.name {
-              found = true;
+              found = Some(detected_activity.clone());
               break;
             }
           }
 
-          if !found {
-            // TODO: if anything changes, pass message to the main thread
+          if let Some(found_activity) = found {
+            // Call the callback function
+            self.event_sender.send(ProcessDetectedEvent {
+              activity: found_activity,
+            }).unwrap();
           }
         }
 

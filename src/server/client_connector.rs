@@ -19,7 +19,7 @@ impl ClientConnector {
   }
 
   pub fn start(&self) {
-    let mut clone = self.clone();
+    let clone = self.clone();
     let clients_clone = self.clients.clone();
 
     std::thread::spawn(move || {

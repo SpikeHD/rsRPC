@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::mpsc};
 use detection::DetectableActivity;
 use serde_json::Value;
 use server::{process::ProcessServer, client_connector::ClientConnector};
@@ -48,8 +48,9 @@ impl RPCServer {
   }
 
   pub fn start(self) {
-    let mut process_server = ProcessServer::new(self.detectable);
-    let client_connector = ClientConnector::new(
+    let (proc_event_sender, proc_event_receiver) = mpsc::channel();
+    let mut process_server = ProcessServer::new(self.detectable, proc_event_sender);
+    let mut client_connector = ClientConnector::new(
       1337,
       r#"
       {
@@ -83,6 +84,10 @@ impl RPCServer {
 
     process_server.start();
 
-    loop {};
+    loop {
+      let event = proc_event_receiver.recv().unwrap();
+
+      println!("Detected process: {:?}", event.activity.name);
+    };
   }
 }
