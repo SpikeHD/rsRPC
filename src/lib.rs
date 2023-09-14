@@ -84,26 +84,41 @@ impl RPCServer {
 
     process_server.start();
 
+    let mut last_activity: Option<DetectableActivity> = None;
+
     loop {
       let event = proc_event_receiver.recv().unwrap();
       let activity = event.activity;
+      
+      match last_activity {
+        Some(ref last) => {
+          if activity.id == "null" {
+              // Send empty payload
+            let payload = format!(r#"
+              {{
+                "activity": null,
+                "pid": {},
+                "socketId": "{}"
+              }}
+            "#, last.pid.unwrap_or_default(), last.id);
 
-      if activity.id == "null" {
-        // Send empty payload
-        let payload = r#"
-          {
-            "activity": null,
-            "pid": null
+            println!("Sending empty payload");
+
+            client_connector.send_data(payload);
+
+            continue;
           }
-        "#.to_string();
-
-        println!("Sending empty payload");
-
-        client_connector.send_data(payload);
-        continue;
+        },
+        None => {
+          // We haven't had any activities yet :(
+          if activity.id == "null" {
+            continue;
+          } 
+        },
       }
 
       let payload = format!(
+        // I don't even know what half of these fields are for yet
         r#"
         {{
           "activity": {{
@@ -119,8 +134,10 @@ impl RPCServer {
           "pid": {},
           "socketId": "{}"
         }}
-        "#, activity.id, activity.name, activity.timestamp.unwrap(), activity.pid.unwrap_or_default(), activity.id
+        "#, activity.id, activity.name, activity.timestamp.as_ref().unwrap(), activity.pid.unwrap_or_default(), activity.id
       );
+
+      last_activity = Some(activity.clone());
 
       client_connector.send_data(payload);
     };
