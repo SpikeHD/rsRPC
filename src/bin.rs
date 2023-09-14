@@ -1,10 +1,10 @@
-use std::path::PathBuf;
 use rsrpc;
+use std::path::PathBuf;
 
 #[cfg(feature = "binary")]
 pub fn main() {
-  use clap::{Parser, command};
-  
+  use clap::{command, Parser};
+
   #[derive(Parser, Debug)]
   #[command(author, version, about, long_about = None)]
   struct Args {

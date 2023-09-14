@@ -1,6 +1,9 @@
-use std::{collections::HashMap, sync::{Mutex, Arc}};
+use std::{
+  collections::HashMap,
+  sync::{Arc, Mutex},
+};
 
-use simple_websockets::{Event, Responder, EventHub, Message};
+use simple_websockets::{Event, EventHub, Message, Responder};
 
 use crate::logger;
 
@@ -16,7 +19,7 @@ impl ClientConnector {
     ClientConnector {
       server: Arc::new(Mutex::new(simple_websockets::launch(port).unwrap())),
       clients: Arc::new(Mutex::new(HashMap::new())),
-      data_on_connect: data_on_connect,
+      data_on_connect,
     }
   }
 
@@ -34,16 +37,19 @@ impl ClientConnector {
             responder.send(Message::Text(clone.data_on_connect.clone()));
 
             clients_clone.lock().unwrap().insert(client_id, responder);
-          },
+          }
           Event::Disconnect(client_id) => {
             clients_clone.lock().unwrap().remove(&client_id);
-          },
+          }
           Event::Message(client_id, message) => {
-            logger::log(format!("Received message from client {}: {:?}", client_id, message));
+            logger::log(format!(
+              "Received message from client {}: {:?}",
+              client_id, message
+            ));
             let responder = clients_clone.lock().unwrap();
             let responder = responder.get(&client_id).unwrap();
             responder.send(message);
-          },
+          }
         }
       }
     });

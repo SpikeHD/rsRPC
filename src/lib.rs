@@ -1,11 +1,11 @@
-use std::{path::PathBuf, sync::mpsc};
 use detection::DetectableActivity;
 use serde_json::Value;
-use server::{process::ProcessServer, client_connector::ClientConnector};
+use server::{client_connector::ClientConnector, process::ProcessServer};
+use std::{path::PathBuf, sync::mpsc};
 
-mod server;
 mod detection;
 mod logger;
+mod server;
 
 pub struct RPCServer {
   detectable: Vec<DetectableActivity>,
@@ -17,12 +17,16 @@ pub struct RPCServer {
 impl RPCServer {
   pub fn from_str(detectable: impl AsRef<str>) -> Self {
     // Parse as JSON, panic if invalid
-    let detectable: Value = serde_json::from_str(detectable.as_ref()).expect("Invalid JSON provided to RPCServer");
+    let detectable: Value =
+      serde_json::from_str(detectable.as_ref()).expect("Invalid JSON provided to RPCServer");
 
     // Turn detectable into a vector of DetectableActivity
-    let detectable: Vec<DetectableActivity> = detectable.as_array().unwrap().iter().map(|x| {
-      serde_json::from_value(x.clone()).unwrap()
-    }).collect();
+    let detectable: Vec<DetectableActivity> = detectable
+      .as_array()
+      .unwrap()
+      .iter()
+      .map(|x| serde_json::from_value(x.clone()).unwrap())
+      .collect();
 
     Self {
       detectable,
@@ -35,11 +39,18 @@ impl RPCServer {
    */
   pub fn from_file(file: PathBuf) -> Self {
     // Read the detectable games list from file.
-    let detectable = std::fs::read_to_string(&file).expect(format!("RPCServer could not find file: {:?}", file.display()).as_str());
-    let detectable: Value = serde_json::from_str(&detectable).expect("Invalid JSON provided to RPCServer");
+    let detectable = std::fs::read_to_string(&file)
+      .expect(format!("RPCServer could not find file: {:?}", file.display()).as_str());
+    let detectable: Value =
+      serde_json::from_str(&detectable).expect("Invalid JSON provided to RPCServer");
 
     // Turn detectable into a vector of DetectableActivity
-    let detectable: Vec<DetectableActivity> = detectable.as_array().unwrap().iter().map(|x| {serde_json::from_value(x.clone()).unwrap()}).collect();
+    let detectable: Vec<DetectableActivity> = detectable
+      .as_array()
+      .unwrap()
+      .iter()
+      .map(|x| serde_json::from_value(x.clone()).unwrap())
+      .collect();
 
     Self {
       detectable,
@@ -73,7 +84,8 @@ impl RPCServer {
           }
         }
       }
-      "#.to_string(),
+      "#
+      .to_string(),
     );
 
     logger::log("Starting client connector...");
@@ -93,18 +105,22 @@ impl RPCServer {
     loop {
       let event = proc_event_receiver.recv().unwrap();
       let activity = event.activity;
-      
+
       match last_activity {
         Some(ref last) => {
           if activity.id == "null" {
-              // Send empty payload
-            let payload = format!(r#"
+            // Send empty payload
+            let payload = format!(
+              r#"
               {{
                 "activity": null,
                 "pid": {},
                 "socketId": "{}"
               }}
-            "#, last.pid.unwrap_or_default(), last.id);
+            "#,
+              last.pid.unwrap_or_default(),
+              last.id
+            );
 
             logger::log("Sending empty payload");
 
@@ -112,13 +128,13 @@ impl RPCServer {
 
             continue;
           }
-        },
+        }
         None => {
           // We haven't had any activities yet :(
           if activity.id == "null" {
             continue;
-          } 
-        },
+          }
+        }
       }
 
       let payload = format!(
@@ -138,7 +154,12 @@ impl RPCServer {
           "pid": {},
           "socketId": "{}"
         }}
-        "#, activity.id, activity.name, activity.timestamp.as_ref().unwrap(), activity.pid.unwrap_or_default(), activity.id
+        "#,
+        activity.id,
+        activity.name,
+        activity.timestamp.as_ref().unwrap(),
+        activity.pid.unwrap_or_default(),
+        activity.id
       );
 
       logger::log(format!("Sending payload for activity: {}", activity.name));
@@ -146,6 +167,6 @@ impl RPCServer {
       last_activity = Some(activity.clone());
 
       client_connector.send_data(payload);
-    };
+    }
   }
 }
