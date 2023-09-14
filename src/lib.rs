@@ -76,15 +76,19 @@ impl RPCServer {
       "#.to_string(),
     );
 
+    logger::log("Starting client connector...");
     client_connector.start();
 
     if self.process_scan_ms.is_some() {
       process_server.scan_wait_ms = self.process_scan_ms.unwrap();
     }
 
+    logger::log("Starting process server...");
     process_server.start();
 
     let mut last_activity: Option<DetectableActivity> = None;
+
+    logger::log("Done! Watching for activity...");
 
     loop {
       let event = proc_event_receiver.recv().unwrap();

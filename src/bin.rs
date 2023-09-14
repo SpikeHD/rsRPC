@@ -26,6 +26,9 @@ pub fn main() {
     client.process_scan_ms = Some(args.process_scan_ms.unwrap().parse::<u64>().unwrap());
   }
 
+  // When running as a binary, enable logs
+  std::env::set_var("LOGS_ENABLED", "1");
+
   client.start();
 }
 
