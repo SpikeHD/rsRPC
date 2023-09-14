@@ -1,7 +1,7 @@
 <div align=center>
   <h1>rsRPC</h1>
 
-  <p>Discord RPC server binary and library, lovingly written in Rust using the core research from <a href="https://github.com/OpenAsar/arRPC">arRPC</a></p>
+  <p>Discord RPC server binary and library, lovingly written in Rust using the core research from <a href="https://github.com/OpenAsar/arRPC">arRPC</a> <sup>(love you guys 💕)</sup></p>
 </div>
 
 # Building
@@ -39,14 +39,14 @@ use rsrpc::RPCServer;
 fn main() {
   let mut server = RPCServer::from_file("./detectable.json").unwrap();
 
-  // This is optional, but highly reccommended. It will change the buffer time in between each process in the process can, which is trigger once every 5 seconds.
+  // This is optional, but highly reccommended. It will change the buffer time in between each process in the process scan, which is trigger once every 5 seconds.
   server.process_scan_ms = 100;
 
   server.start().unwrap();
 }
 ```
 
-You can also grab the `detecable.json` programmatically and pass it via string:
+You can also grab the `detectable.json` programmatically and pass it via string:
 ```rust
 fn main() {
   let detectable = reqwest::blocking::get("https://raw.githubusercontent.com/OpenAsar/arrpc/main/src/process/detectable.json").unwrap().text().unwrap();
