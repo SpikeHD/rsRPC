@@ -10,6 +10,9 @@ pub fn main() {
   struct Args {
     #[arg(short, long, default_value = "false")]
     detectable_file: PathBuf,
+
+    #[arg(short, long, default_value = None)]
+    process_scan_ms: Option<String>,
   }
 
   let args = Args::parse();
@@ -18,6 +21,10 @@ pub fn main() {
   let mut client = rsrpc::RPCServer::from_file(args.detectable_file);
 
   client.process_scan_ms = Some(100);
+
+  if args.process_scan_ms.is_some() {
+    client.process_scan_ms = Some(args.process_scan_ms.unwrap().parse::<u64>().unwrap());
+  }
 
   client.start();
 }

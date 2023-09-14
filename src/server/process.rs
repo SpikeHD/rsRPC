@@ -48,15 +48,10 @@ impl ProcessServer {
         // If the detected list has changed, send a message to the main thread
         for activity in &detected {
           // Check for matching name properties
-          let mut found = None;
-          let detected = self.detected_list.lock().unwrap();
+          let found = Some(activity.clone());
 
-          for detected_activity in detected.iter() {
-            if detected_activity.name == activity.name {
-              found = Some(detected_activity.clone());
-              break;
-            }
-          }
+          println!("Detected {} ({})", activity.name, activity.id);
+          println!("Found? {:?}", found.is_some());
 
           if let Some(found_activity) = found {
             // Call the callback function
@@ -65,6 +60,47 @@ impl ProcessServer {
             }).unwrap();
           }
         }
+
+        // If there are no detected processes, send an empty message
+        if detected.len() == 0 {
+          self.event_sender.send(ProcessDetectedEvent {
+            activity: DetectableActivity {
+              bot_public: None,
+              bot_require_code_grant: None,
+              cover_image: None,
+              description: None,
+              developers: None,
+              executables: None,
+              flags: None,
+              guild_id: None,
+              hook: false,
+              icon: None,
+              id: "null".to_string(),
+              name: "".to_string(),
+              publishers: vec![],
+              rpc_origins: vec![],
+              splash: None,
+              summary: "".to_string(),
+              third_party_skus: vec![],
+              type_field: None,
+              verify_key: "".to_string(),
+              primary_sku_id: None,
+              slug: None,
+              aliases: vec![],
+              overlay: None,
+              overlay_compatibility_hook: None,
+              privacy_policy_url: None,
+              terms_of_service_url: None,
+              eula_id: None,
+              deeplink_uri: None,
+              tags: vec![],
+              pid: None,
+            },
+          }).unwrap();
+        }
+
+        // Set the detected list to the new list
+        *self.detected_list.lock().unwrap() = detected;
 
         std::thread::sleep(Duration::from_secs(3));
       }
@@ -124,7 +160,7 @@ impl ProcessServer {
               // Push the whole game
               let mut new_activity = obj.clone();
               new_activity.pid = Some(process.pid);
-              detected_list.push(obj.clone());
+              detected_list.push(new_activity);
             }
           }
         }

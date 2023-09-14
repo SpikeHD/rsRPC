@@ -5,7 +5,7 @@ use simple_websockets::{Event, Responder, EventHub, Message};
 #[derive(Clone)]
 pub struct ClientConnector {
   server: Arc<Mutex<EventHub>>,
-  clients: Arc<Mutex<HashMap<u64, Responder>>>,
+  pub clients: Arc<Mutex<HashMap<u64, Responder>>>,
   data_on_connect: String,
 }
 

@@ -88,25 +88,37 @@ impl RPCServer {
       let event = proc_event_receiver.recv().unwrap();
       let activity = event.activity;
 
-      println!("Detected process: {:?}", activity.name);
+      if activity.id == "null" {
+        // Send empty payload
+        let payload = r#"
+          {
+            "activity": null,
+            "pid": null
+          }
+        "#.to_string();
 
-      client_connector.send_data(format!(
+        println!("Sending empty payload");
+
+        client_connector.send_data(payload);
+        continue;
+      }
+
+      let payload = format!(
         r#"
         {{
-          "cmd": "SET_ACTIVITY",
-          "args": {{
-            "activity": {{
-              "application_id": {},
-              "name": "{}",
-              "timestamps": {{
-                start: "{}"
-              }}
-            }},
-            "pid": "{}"
-          }}
+          "activity": {{
+            "application_id": "{}",
+            "name": "{}",
+            "timestamps": {{
+              "start": "{}"
+            }}
+          }},
+          "pid": "{}"
         }}
         "#, activity.id, activity.name, chrono::Utc::now().to_rfc3339(), activity.pid.unwrap_or_default()
-      ))
+      );
+
+      client_connector.send_data(payload);
     };
   }
 }
