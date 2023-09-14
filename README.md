@@ -44,12 +44,12 @@ rsrpc = { git = "https://www.github.com/SpikeHD/rsRPC" }
 use rsrpc::RPCServer;
 
 fn main() {
-  let mut server = RPCServer::from_file("./detectable.json").unwrap();
+  let mut server = RPCServer::from_file("./detectable.json");
 
   // This is optional, but highly reccommended. It will change the buffer time in between each process in the process scan, which is trigger once every 5 seconds.
   server.process_scan_ms = 100;
 
-  server.start().unwrap();
+  server.start();
 }
 ```
 
@@ -59,8 +59,8 @@ fn main() {
   let detectable = reqwest::blocking::get("https://raw.githubusercontent.com/OpenAsar/arrpc/main/src/process/detectable.json").unwrap().text().unwrap();
 
   // This accepts both a `&str` or a `String`
-  let mut server = RPCServer::from_json_str(detectable).unwrap();
+  let mut server = RPCServer::from_json_str(detectable);
 
-  server.start().unwrap();
+  server.start();
 }
 ```
