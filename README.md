@@ -51,7 +51,7 @@ You can also grab the `detecable.json` programmatically and pass it via string:
 fn main() {
   let detectable = reqwest::blocking::get("https://raw.githubusercontent.com/OpenAsar/arrpc/main/src/process/detectable.json").unwrap().text().unwrap();
 
-  // This accepts both a `&str` and a `String`
+  // This accepts both a `&str` or a `String`
   let mut server = RPCServer::from_str(detectable).unwrap();
 
   server.start().unwrap();
