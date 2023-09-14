@@ -5,7 +5,7 @@ use server::{process::ProcessServer, client_connector::ClientConnector};
 
 mod server;
 mod detection;
-
+mod logger;
 
 pub struct RPCServer {
   detectable: Vec<DetectableActivity>,
@@ -102,7 +102,7 @@ impl RPCServer {
               }}
             "#, last.pid.unwrap_or_default(), last.id);
 
-            println!("Sending empty payload");
+            logger::log("Sending empty payload");
 
             client_connector.send_data(payload);
 
@@ -136,6 +136,8 @@ impl RPCServer {
         }}
         "#, activity.id, activity.name, activity.timestamp.as_ref().unwrap(), activity.pid.unwrap_or_default(), activity.id
       );
+
+      logger::log(format!("Sending payload for activity: {}", activity.name));
 
       last_activity = Some(activity.clone());
 

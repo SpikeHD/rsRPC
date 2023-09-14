@@ -7,6 +7,8 @@ use std::vec;
 use sysinfo::SystemExt;
 use sysinfo::ProcessExt;
 
+use crate::logger;
+
 use super::super::DetectableActivity;
 
 #[derive(Clone)]
@@ -52,6 +54,8 @@ impl ProcessServer {
           if self.detected_list.lock().unwrap().iter().any(|x| x.id == activity.id) {
             // Send back the existing activity
             let found = self.detected_list.lock().unwrap().iter().find(|x| x.id == activity.id).unwrap().clone();
+
+            logger::log(format!("Found existing activity: {}", found.name));
 
             self.event_sender.send(ProcessDetectedEvent {
               activity: found.clone(),
@@ -134,7 +138,7 @@ impl ProcessServer {
   }
 
   pub fn scan_for_processes(&mut self) -> Vec<DetectableActivity> {
-    println!("Process scan triggered");
+    logger::log("Process scan triggered");
     let processes = ProcessServer::process_list();
     let mut detected_list = vec![];
 

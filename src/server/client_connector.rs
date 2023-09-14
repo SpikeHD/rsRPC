@@ -2,6 +2,8 @@ use std::{collections::HashMap, sync::{Mutex, Arc}};
 
 use simple_websockets::{Event, Responder, EventHub, Message};
 
+use crate::logger;
+
 #[derive(Clone)]
 pub struct ClientConnector {
   server: Arc<Mutex<EventHub>>,
@@ -26,7 +28,7 @@ impl ClientConnector {
       loop {
         match clone.server.lock().unwrap().poll_event() {
           Event::Connect(client_id, responder) => {
-            println!("Client {} connected", client_id);
+            logger::log(format!("Client {} connected", client_id));
 
             // Send initial connection data
             responder.send(Message::Text(clone.data_on_connect.clone()));
@@ -37,7 +39,7 @@ impl ClientConnector {
             clients_clone.lock().unwrap().remove(&client_id);
           },
           Event::Message(client_id, message) => {
-            println!("Received message from client {}: {:?}", client_id, message);
+            logger::log(format!("Received message from client {}: {:?}", client_id, message));
             let responder = clients_clone.lock().unwrap();
             let responder = responder.get(&client_id).unwrap();
             responder.send(message);
