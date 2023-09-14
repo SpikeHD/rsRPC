@@ -106,6 +106,12 @@ impl RPCServer {
       let event = proc_event_receiver.recv().unwrap();
       let activity = event.activity;
 
+      // If there are no clients, we don't care
+      if client_connector.clients.lock().unwrap().len() == 0 {
+        logger::log("No clients connected, skipping");
+        continue;
+      }
+
       match last_activity {
         Some(ref last) => {
           if activity.id == "null" {
