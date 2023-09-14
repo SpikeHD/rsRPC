@@ -12,15 +12,17 @@
 
 ## Testing it out
 
-1. Clone the repository
-2. Place a `detectable.json` file in the root folder (you can use [the arRPC one](https://raw.githubusercontent.com/OpenAsar/arrpc/main/src/process/detectable.json) as an example)
-3. Run `cargo run --features binary -- -d ./detectable.json` in the root directory
+1. Download a binary from [actions](https://www.github.com/SpikeHD/rsRPC/actions), from the [releases](https://www.github.com/SpikeHD/rsRPC/releases) page, or build it yourself below!
+2. Place a `detectable.json` file in the same directory as the binary (you can use [the arRPC one](https://raw.githubusercontent.com/OpenAsar/arrpc/main/src/process/detectable.json) as an example)
+3. Run the binary with `./rsrpc -d ./detectable.json`
 
 ## Building the binary
 
 1. Clone the repository
-2. Run `cargo build --features binary` in the root directory
-3. The binary will be in `target/release/rsrpc`
+2. Place a `detectable.json` file in the root folder (you can use [the arRPC one](https://raw.githubusercontent.com/OpenAsar/arrpc/main/src/process/detectable.json) as an example)
+3. If you wanna try it out, run `cargo run --features binary -- -d ./detectable.json` in the root directory
+4. If you want to make a build, run `cargo build --features binary` in the root directory
+5. The binary will be in `target/release/rsrpc`
 
 ## Using as a library
 
