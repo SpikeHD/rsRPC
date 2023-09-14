@@ -46,7 +46,8 @@ use rsrpc::RPCServer;
 fn main() {
   let mut server = RPCServer::from_file("./detectable.json");
 
-  // This is optional, but highly reccommended. It will change the buffer time in between each process in the process scan, which is trigger once every 5 seconds.
+  // This is optional, but highly reccommended. It will change the buffer time in between each process in the process scan, which is triggered once every 5 seconds.
+  // Around 100ms tends to be pretty performant, while small numbers tend to make the CPU work somewhat hard.
   server.process_scan_ms = 100;
 
   server.start();
