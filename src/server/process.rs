@@ -97,7 +97,7 @@ impl ProcessServer {
         }
 
         // If there are no detected processes, send an empty message
-        if detected.len() == 0 {
+        if detected.is_empty() {
           self
             .event_sender
             .send(ProcessDetectedEvent {
@@ -174,9 +174,9 @@ impl ProcessServer {
       let mut possibilities = vec![process.clone()];
 
       // It also could have no extension
-      if process.name.contains(".") {
+      if process.name.contains('.') {
         // Split the name by the dot
-        let split: Vec<&str> = process.name.split(".").collect();
+        let split: Vec<&str> = process.name.split('.').collect();
 
         // New exec struct with name not having extension
         let mut new_exec = process.clone();

@@ -15,7 +15,7 @@ pub struct RPCServer {
 }
 
 impl RPCServer {
-  pub fn from_str(detectable: impl AsRef<str>) -> Self {
+  pub fn from_json_str(detectable: impl AsRef<str>) -> Self {
     // Parse as JSON, panic if invalid
     let detectable: Value =
       serde_json::from_str(detectable.as_ref()).expect("Invalid JSON provided to RPCServer");
@@ -40,7 +40,7 @@ impl RPCServer {
   pub fn from_file(file: PathBuf) -> Self {
     // Read the detectable games list from file.
     let detectable = std::fs::read_to_string(&file)
-      .expect(format!("RPCServer could not find file: {:?}", file.display()).as_str());
+      .unwrap_or_else(|_| panic!("RPCServer could not find file: {:?}", file.display()));
     let detectable: Value =
       serde_json::from_str(&detectable).expect("Invalid JSON provided to RPCServer");
 
