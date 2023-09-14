@@ -1,0 +1,49 @@
+name: Build
+
+on:
+  push:
+    paths:
+      - '.github/workflows/build.yml'
+      - 'src/**/*'
+      - 'Cargo.toml'
+  pull_request:
+    paths:
+      - '.github/workflows/build.yml'
+      - 'src/**/*'
+      - 'Cargo.toml'
+
+concurrency:
+  group: ${{ github.ref }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ${{ matrix.platform }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [windows-latest, ubuntu-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      - name: Download detectable.json from https://raw.githubusercontent.com/OpenAsar/arrpc/main/src/process/detectable.json
+        run: curl -s https://raw.githubusercontent.com/OpenAsar/arrpc/main/src/process/detectable.json -o detectable.json
+
+      - name: Build
+        run: cargo build --release --locked --features binary
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v2
+        with:
+          name: arrpc-${{ matrix.platform }}
+          # Find exec based on platform
+          path: target/release/rsrpc${{ matrix.platform == 'windows-latest' && '.exe' || '' }}
+          
