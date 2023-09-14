@@ -21,3 +21,26 @@
 1. Clone the repository
 2. Run `cargo build --features binary` in the root directory
 3. The binary will be in `target/release/rsrpc`
+
+## Using as a library
+
+1. Add the following to your `Cargo.toml` file:
+
+```toml
+[dependencies]
+rsrpc = { git = "https://www.github.com/SpikeHD/rsRPC" }
+```
+
+2. Use the library in your code:
+
+```rust
+use rsrpc::RPCServer;
+
+fn main() {
+  let mut server = RPCServer::from_file("./detectable.json").unwrap();
+
+  // This is optional, but highly reccommended. It will change the buffer time in between each process in the process can, which is trigger once every 5 seconds.
+  server.process_scan_ms = 100;
+
+  server.start().unwrap();
+}
