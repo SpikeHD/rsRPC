@@ -35,7 +35,7 @@ jobs:
           override: true
 
       - name: Build
-        run: cargo build --release --locked --features binary
+        run: cargo build --release --features binary
 
       - name: Upload binary
         uses: actions/upload-artifact@v2
