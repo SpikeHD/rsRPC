@@ -110,12 +110,16 @@ impl RPCServer {
             "application_id": "{}",
             "name": "{}",
             "timestamps": {{
-              "start": "{}"
-            }}
+              "start": {}
+            }},
+            "type": 0,
+            "metadata": {{}},
+            "flags": 0
           }},
-          "pid": "{}"
+          "pid": {},
+          "socketId": "{}"
         }}
-        "#, activity.id, activity.name, chrono::Utc::now().to_rfc3339(), activity.pid.unwrap_or_default()
+        "#, activity.id, activity.name, activity.timestamp.unwrap(), activity.pid.unwrap_or_default(), activity.id
       );
 
       client_connector.send_data(payload);

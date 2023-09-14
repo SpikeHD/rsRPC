@@ -44,21 +44,30 @@ impl ProcessServer {
       // Run the process scan repeatedly (every 3 seconds)
       loop {
         let detected = self.scan_for_processes();
+        let mut new_game_detected = false;
 
         // If the detected list has changed, send a message to the main thread
         for activity in &detected {
-          // Check for matching name properties
-          let found = Some(activity.clone());
+          // If the activity is already in the detected list (by ID), skip
+          if self.detected_list.lock().unwrap().iter().any(|x| x.id == activity.id) {
+            // Send back the existing activity
+            let found = self.detected_list.lock().unwrap().iter().find(|x| x.id == activity.id).unwrap().clone();
 
-          println!("Detected {} ({})", activity.name, activity.id);
-          println!("Found? {:?}", found.is_some());
-
-          if let Some(found_activity) = found {
-            // Call the callback function
             self.event_sender.send(ProcessDetectedEvent {
-              activity: found_activity,
+              activity: found.clone(),
             }).unwrap();
+
+            continue;
           }
+
+          // Find the activity in the detectable list
+          let found = activity;
+
+          new_game_detected = true;
+
+          self.event_sender.send(ProcessDetectedEvent {
+            activity: found.clone(),
+          }).unwrap();
         }
 
         // If there are no detected processes, send an empty message
@@ -95,14 +104,17 @@ impl ProcessServer {
               deeplink_uri: None,
               tags: vec![],
               pid: None,
+              timestamp: None,
             },
           }).unwrap();
         }
 
-        // Set the detected list to the new list
-        *self.detected_list.lock().unwrap() = detected;
+        if new_game_detected {
+          // Set the detected list to the new list
+          *self.detected_list.lock().unwrap() = detected;
+        }
 
-        std::thread::sleep(Duration::from_secs(3));
+        std::thread::sleep(Duration::from_secs(5));
       }
     });
   }
@@ -160,6 +172,10 @@ impl ProcessServer {
               // Push the whole game
               let mut new_activity = obj.clone();
               new_activity.pid = Some(process.pid);
+
+              // Set timestamp to JS timestamp
+              new_activity.timestamp = Some(format!("{:?}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis()));
+
               detected_list.push(new_activity);
             }
           }

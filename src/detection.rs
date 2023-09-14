@@ -53,6 +53,7 @@ pub struct DetectableActivity {
     #[serde(default)]
     pub tags: Vec<String>,
     pub pid: Option<u64>,
+    pub timestamp: Option<String>,
 }
 
 #[derive(Deserialize, Clone)]
