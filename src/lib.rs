@@ -15,9 +15,9 @@ pub struct RPCServer {
 }
 
 impl RPCServer {
-  pub fn from_str(detectable: &str) -> Self {
+  pub fn from_str(detectable: impl AsRef<str>) -> Self {
     // Parse as JSON, panic if invalid
-    let detectable: Value = serde_json::from_str(detectable).expect("Invalid JSON provided to RPCServer");
+    let detectable: Value = serde_json::from_str(detectable.as_ref()).expect("Invalid JSON provided to RPCServer");
 
     // Turn detectable into a vector of DetectableActivity
     let detectable: Vec<DetectableActivity> = detectable.as_array().unwrap().iter().map(|x| {
