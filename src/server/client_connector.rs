@@ -62,3 +62,9 @@ impl ClientConnector {
     }
   }
 }
+
+impl Drop for ClientConnector {
+  fn drop(&mut self) {
+    drop(self.server.lock().unwrap());
+  }
+}
