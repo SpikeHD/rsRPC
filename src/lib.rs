@@ -183,13 +183,14 @@ impl RPCServer {
 
       logger::log(format!("Sending payload for activity: {}", activity.name));
 
-      last_activity = Some(activity.clone());
-
       // Send the empty activity to clear, then send the new activity
-      self.client_connector.send_data(empty_activity(
-        activity.pid.unwrap_or_default(),
-        activity.id,
-      ));
+      if let Some(ref last) = last_activity {
+        let empty_payload = empty_activity(last.pid.unwrap_or_default(), last.id.clone());
+
+        self.client_connector.send_data(empty_payload);
+      }
+
+      last_activity = Some(activity.clone());
 
       self.client_connector.send_data(payload);
     }
