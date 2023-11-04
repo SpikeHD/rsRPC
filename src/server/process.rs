@@ -167,52 +167,34 @@ impl ProcessServer {
     let processes = ProcessServer::process_list();
     let mut detected_list = vec![];
 
-    for process in processes {
-      // It's fine if this is a little slow so as to not crank the CPU
-      std::thread::sleep(std::time::Duration::from_millis(self.scan_wait_ms));
-
-      let mut possibilities = vec![process.clone()];
-
-      // It also could have no extension
-      if process.name.contains('.') {
-        // Split the name by the dot
-        let split: Vec<&str> = process.name.split('.').collect();
-
-        // New exec struct with name not having extension
-        let mut new_exec = process.clone();
-        new_exec.name = split[0].to_string();
-
-        // Push the new exec struct
-        possibilities.push(new_exec);
+    for obj in &self.detectable_list {
+      // if executables is null, just skip
+      if obj.executables.is_none() {
+        continue;
       }
 
-      for obj in &self.detectable_list {
-        // if executables is null, just skip
-        if obj.executables.is_none() {
-          continue;
-        }
+      for process in &processes {
+        // It's fine if this is a little slow so as to not crank the CPU
+        std::thread::sleep(std::time::Duration::from_millis(self.scan_wait_ms));
 
         // detectable['executables'] is an array of objects with keys is_launcher, name, and os
         for executable in obj.executables.as_ref().unwrap() {
-          // Check each possibility
-          for possibility in &possibilities {
-            // If this game is not in the list of already detected games, and the executable name matches, add
-            if executable.name.to_lowercase() == *possibility.name.to_lowercase() {
-              // Push the whole game
-              let mut new_activity = obj.clone();
-              new_activity.pid = Some(process.pid);
+          // If this game is not in the list of already detected games, and the executable name matches, add
+          if executable.name.to_lowercase() == *process.name.to_lowercase() || executable.name.to_lowercase() == nameNoExt(process.name.to_lowercase()) {
+            // Push the whole game
+            let mut new_activity = obj.clone();
+            new_activity.pid = Some(process.pid);
 
-              // Set timestamp to JS timestamp
-              new_activity.timestamp = Some(format!(
-                "{:?}",
-                std::time::SystemTime::now()
-                  .duration_since(std::time::UNIX_EPOCH)
-                  .unwrap()
-                  .as_millis()
-              ));
+            // Set timestamp to JS timestamp
+            new_activity.timestamp = Some(format!(
+              "{:?}",
+              std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_millis()
+            ));
 
-              detected_list.push(new_activity);
-            }
+            detected_list.push(new_activity);
           }
         }
       }
@@ -221,4 +203,15 @@ impl ProcessServer {
     // Overwrite self.detected_list with the new list
     detected_list
   }
+}
+
+pub fn nameNoExt(name: String) -> String {
+  if name.contains('.') {
+    // Split the name by the dot
+    let split: Vec<&str> = name.split('.').collect();
+
+    return split[0].to_string();
+  }
+
+  name
 }
