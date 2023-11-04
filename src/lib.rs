@@ -3,7 +3,7 @@ use serde_json::Value;
 use server::{client_connector::ClientConnector, process::ProcessServer};
 use std::{path::PathBuf, sync::mpsc};
 
-mod detection;
+pub mod detection;
 mod logger;
 mod server;
 
