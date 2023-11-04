@@ -27,7 +27,7 @@ pub fn main() {
   }
 
   // When running as a binary, enable logs
-  std::env::set_var("LOGS_ENABLED", "1");
+  std::env::set_var("RSRPC_LOGS_ENABLED", "1");
 
   client.start();
 }
