@@ -9,6 +9,8 @@ mod server;
 
 pub struct RPCServer {
   detectable: Vec<DetectableActivity>,
+  process_server: ProcessServer,
+  client_connector: ClientConnector,
 
   // Milliseconds to wait between each processes scan. Good for limiting CPU usage.
   pub process_scan_ms: Option<u64>,
@@ -44,6 +46,10 @@ impl RPCServer {
     Self {
       detectable,
       process_scan_ms: None,
+
+      // These are default empty servers, and are replaced on start()
+      process_server: ProcessServer::new(vec![], mpsc::channel().0),
+      client_connector: ClientConnector::new(1337, "".to_string()),
     }
   }
 
@@ -54,27 +60,21 @@ impl RPCServer {
     // Read the detectable games list from file.
     let detectable = std::fs::read_to_string(&file)
       .unwrap_or_else(|_| panic!("RPCServer could not find file: {:?}", file.display()));
-    let detectable: Value =
-      serde_json::from_str(&detectable).expect("Invalid JSON provided to RPCServer");
 
-    // Turn detectable into a vector of DetectableActivity
-    let detectable: Vec<DetectableActivity> = detectable
-      .as_array()
-      .unwrap()
-      .iter()
-      .map(|x| serde_json::from_value(x.clone()).unwrap())
-      .collect();
-
-    Self {
-      detectable,
-      process_scan_ms: None,
-    }
+    Self::from_json_str(detectable.as_str())
   }
 
-  pub fn start(self) {
+  /**
+   * Add new detectable processes on-the-fly. This should be run AFTER start().
+   */
+  pub fn append_detectables(&mut self, detectable: Vec<DetectableActivity>) {
+    self.process_server.append_detectables(detectable);
+  }
+
+  pub fn start(mut self) {
     let (proc_event_sender, proc_event_receiver) = mpsc::channel();
-    let mut process_server = ProcessServer::new(self.detectable, proc_event_sender);
-    let mut client_connector = ClientConnector::new(
+    self.process_server = ProcessServer::new(self.detectable, proc_event_sender);
+    self.client_connector = ClientConnector::new(
       1337,
       r#"
       {
@@ -102,14 +102,14 @@ impl RPCServer {
     );
 
     logger::log("Starting client connector...");
-    client_connector.start();
+    self.client_connector.start();
 
     if self.process_scan_ms.is_some() {
-      process_server.scan_wait_ms = self.process_scan_ms.unwrap();
+      self.process_server.scan_wait_ms = self.process_scan_ms.unwrap();
     }
 
     logger::log("Starting process server...");
-    process_server.start();
+    self.process_server.start();
 
     let mut last_activity: Option<DetectableActivity> = None;
 
@@ -120,7 +120,7 @@ impl RPCServer {
       let activity = event.activity;
 
       // If there are no clients, we don't care
-      if client_connector.clients.lock().unwrap().len() == 0 {
+      if self.client_connector.clients.lock().unwrap().len() == 0 {
         logger::log("No clients connected, skipping");
         continue;
       }
@@ -143,7 +143,7 @@ impl RPCServer {
 
             logger::log("Sending empty payload");
 
-            client_connector.send_data(payload);
+            self.client_connector.send_data(payload);
 
             continue;
           }
@@ -186,12 +186,12 @@ impl RPCServer {
       last_activity = Some(activity.clone());
 
       // Send the empty activity to clear, then send the new activity
-      client_connector.send_data(empty_activity(
+      self.client_connector.send_data(empty_activity(
         activity.pid.unwrap_or_default(),
         activity.id,
       ));
       
-      client_connector.send_data(payload);
+      self.client_connector.send_data(payload);
     }
   }
 }

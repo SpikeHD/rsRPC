@@ -44,6 +44,10 @@ impl ProcessServer {
     }
   }
 
+  pub fn append_detectables(&mut self, detectable: Vec<DetectableActivity>) {
+    self.detectable_list.extend(detectable);
+  }
+
   pub fn start(mut self) {
     std::thread::spawn(move || {
       // Run the process scan repeatedly (every 3 seconds)

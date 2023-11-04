@@ -9,6 +9,13 @@
   <p>Discord RPC server binary and library, lovingly written in Rust using the core research from <a href="https://github.com/OpenAsar/arRPC">arRPC</a> <sup>(love you guys 💕)</sup></p>
 </div>
 
+# Features
+
+* Basic process detection
+  * More advanced RPC is coming soon™ 
+* Add new processes on the fly
+* Customize process scanning speed
+
 # Building
 
 ## Requirements
