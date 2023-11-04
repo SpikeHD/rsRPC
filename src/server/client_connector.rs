@@ -9,6 +9,7 @@ use crate::logger;
 
 #[derive(Clone)]
 pub struct ClientConnector {
+  pub port: u16,
   server: Arc<Mutex<EventHub>>,
   pub clients: Arc<Mutex<HashMap<u64, Responder>>>,
   data_on_connect: String,
@@ -20,6 +21,7 @@ impl ClientConnector {
       server: Arc::new(Mutex::new(simple_websockets::launch(port).unwrap())),
       clients: Arc::new(Mutex::new(HashMap::new())),
       data_on_connect,
+      port,
     }
   }
 

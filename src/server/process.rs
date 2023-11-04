@@ -87,6 +87,8 @@ impl ProcessServer {
             continue;
           }
 
+          logger::log("Found new activity...");
+
           // Find the activity in the detectable list
           let found = activity;
 
@@ -176,10 +178,11 @@ impl ProcessServer {
       if obj.executables.is_none() {
         continue;
       }
+      
+      // It's fine if this is a little slow so as to not crank the CPU
+      std::thread::sleep(std::time::Duration::from_millis(self.scan_wait_ms));
 
       for process in &processes {
-        // It's fine if this is a little slow so as to not crank the CPU
-        std::thread::sleep(std::time::Duration::from_millis(self.scan_wait_ms));
 
         // detectable['executables'] is an array of objects with keys is_launcher, name, and os
         for executable in obj.executables.as_ref().unwrap() {

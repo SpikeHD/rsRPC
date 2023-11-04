@@ -101,7 +101,7 @@ impl RPCServer {
       .to_string(),
     );
 
-    logger::log("Starting client connector...");
+    logger::log(format!("Starting client connector on port {}...", self.client_connector.port));
     self.client_connector.start();
 
     if self.process_scan_ms.is_some() {
