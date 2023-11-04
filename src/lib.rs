@@ -49,7 +49,7 @@ impl RPCServer {
 
       // These are default empty servers, and are replaced on start()
       process_server: ProcessServer::new(vec![], mpsc::channel().0),
-      client_connector: ClientConnector::new(1337, "".to_string()),
+      client_connector: ClientConnector::new(65447, "".to_string()),
     }
   }
 
