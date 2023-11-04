@@ -48,7 +48,7 @@ impl RPCServer {
       process_scan_ms: None,
 
       // These are default empty servers, and are replaced on start()
-      process_server: ProcessServer::new(vec![], mpsc::channel().0),
+      process_server: ProcessServer::new(vec![], mpsc::channel().0, 1),
       client_connector: ClientConnector::new(65447, "".to_string()),
     }
   }
@@ -73,7 +73,7 @@ impl RPCServer {
 
   pub fn start(mut self) {
     let (proc_event_sender, proc_event_receiver) = mpsc::channel();
-    self.process_server = ProcessServer::new(self.detectable, proc_event_sender);
+    self.process_server = ProcessServer::new(self.detectable, proc_event_sender, 8);
     self.client_connector = ClientConnector::new(
       1337,
       r#"
