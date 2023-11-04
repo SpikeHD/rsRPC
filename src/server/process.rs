@@ -180,7 +180,7 @@ impl ProcessServer {
         // detectable['executables'] is an array of objects with keys is_launcher, name, and os
         for executable in obj.executables.as_ref().unwrap() {
           // If this game is not in the list of already detected games, and the executable name matches, add
-          if executable.name.to_lowercase() == *process.name.to_lowercase() || executable.name.to_lowercase() == nameNoExt(process.name.to_lowercase()) {
+          if executable.name.to_lowercase() == *process.name.to_lowercase() || executable.name.to_lowercase() == name_no_ext(process.name.to_lowercase()) {
             // Push the whole game
             let mut new_activity = obj.clone();
             new_activity.pid = Some(process.pid);
@@ -205,7 +205,7 @@ impl ProcessServer {
   }
 }
 
-pub fn nameNoExt(name: String) -> String {
+pub fn name_no_ext(name: String) -> String {
   if name.contains('.') {
     // Split the name by the dot
     let split: Vec<&str> = name.split('.').collect();
