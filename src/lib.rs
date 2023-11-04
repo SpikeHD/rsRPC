@@ -190,7 +190,7 @@ impl RPCServer {
         activity.pid.unwrap_or_default(),
         activity.id,
       ));
-      
+
       self.client_connector.send_data(payload);
     }
   }
