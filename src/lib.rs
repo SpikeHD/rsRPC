@@ -14,6 +14,19 @@ pub struct RPCServer {
   pub process_scan_ms: Option<u64>,
 }
 
+fn empty_activity(pid: u64, socket_id: String) -> String {
+  format!(
+    r#"
+    {{
+      "activity": null,
+      "pid": {},
+      "socketId": "{}"
+    }}
+  "#,
+    pid, socket_id
+  )
+}
+
 impl RPCServer {
   pub fn from_json_str(detectable: impl AsRef<str>) -> Self {
     // Parse as JSON, panic if invalid
@@ -172,6 +185,12 @@ impl RPCServer {
 
       last_activity = Some(activity.clone());
 
+      // Send the empty activity to clear, then send the new activity
+      client_connector.send_data(empty_activity(
+        activity.pid.unwrap_or_default(),
+        activity.id,
+      ));
+      
       client_connector.send_data(payload);
     }
   }
