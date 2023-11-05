@@ -9,6 +9,10 @@ use std::ptr;
 use std::ffi::c_void;
 
 use crate::logger;
+use crate::server::utils;
+
+use super::ipc_utils::Handshake;
+use super::ipc_utils::PacketType;
 
 pub struct PipeHandle(*mut c_void);
 unsafe impl Send for PipeHandle {}
@@ -16,20 +20,27 @@ unsafe impl Send for PipeHandle {}
 #[derive(Clone)]
 pub struct IpcConnector {
   pub socket: Arc<Mutex<PipeHandle>>,
+  pub did_handshake: bool,
+  pub client_id: String,
 }
 
 impl IpcConnector {
   /**
-   * Create the socket
+   * Create a socket and return a new IpcConnector
    */
   pub fn new() -> Self {
     let pipe_handle = Self::create_socket(None);
 
     Self {
       socket: Arc::new(Mutex::new(PipeHandle(pipe_handle))),
+      did_handshake: false,
+      client_id: "".to_string(),
     }
   }
 
+  /**
+   * ACTUALLY create a socket, and return the handle
+   */
   fn create_socket(tries: Option<u8>) -> *mut c_void {
     // Define the path to the named pipe
     let pipe_path = r"\\.\pipe\discord-ipc";
@@ -77,7 +88,7 @@ impl IpcConnector {
    * Create a new thread that will recieve messages from the socket
    */
   pub fn start(&mut self) {
-    let clone = self.clone();
+    let mut clone = self.clone();
 
     std::thread::spawn(move || {
       let socket = clone.socket.lock().unwrap();
@@ -102,12 +113,76 @@ impl IpcConnector {
           continue;
         }
 
+        let r_type = PacketType::from_u32(u32::from_le_bytes([buffer[0], buffer[1], buffer[2], buffer[3]]));
+        let data_size = u32::from_le_bytes([buffer[4], buffer[5], buffer[6], buffer[7]]);
+
         // Convert the buffer to a string
-        let message = String::from_utf8_lossy(&buffer).to_string();
+        let message = String::from_utf8_lossy(&buffer[8..(8 + data_size as usize)]).to_string();
 
         // Log the message
         logger::log(&format!("Recieved message: {}", message));
+
+        match r_type {
+          PacketType::HANDSHAKE => {
+            let data: Handshake = serde_json::from_str(&message).unwrap();
+
+            if data.v != 1 {
+              panic!("Invalid version: {}", data.v);
+            }
+
+            // Send utils::connection_resp()
+            let resp = encode(PacketType::FRAME, utils::connection_resp().to_string());
+
+            unsafe {
+              winapi::um::fileapi::WriteFile(
+                (*socket).0,
+                resp.as_ptr() as *mut c_void,
+                resp.len() as u32,
+                ptr::null_mut(),
+                ptr::null_mut(),
+              );
+            }
+
+            clone.did_handshake = true;
+            clone.client_id = data.client_id;
+          }
+          PacketType::FRAME => {
+            logger::log("Recieved frame");
+            if !clone.did_handshake {
+              logger::log("Did not handshake yet, ignoring frame");
+              continue;
+            }
+          }
+          PacketType::CLOSE => {
+            logger::log("Recieved close");
+
+            // reset values
+            clone.did_handshake = false;
+            clone.client_id = "".to_string();
+          }
+          PacketType::PING => {
+            logger::log("Recieved ping");
+          }
+          PacketType::PONG => {
+            logger::log("Recieved pong");
+          }
+        }
       }
     });
+
+    fn encode(r_type: PacketType, data: String) -> Vec<u8> {
+      let mut buffer: Vec<u8> = Vec::new();
+
+      // Write the packet type
+      buffer.extend_from_slice(&u32::to_le_bytes(r_type as u32));
+
+      // Write the data size
+      buffer.extend_from_slice(&u32::to_le_bytes(data.len() as u32));
+
+      // Write the data
+      buffer.extend_from_slice(data.as_bytes());
+
+      buffer
+    }
   }
 }
