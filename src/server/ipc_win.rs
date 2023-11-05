@@ -175,7 +175,9 @@ impl IpcConnector {
               continue;
             }
 
-            let activity_cmd: ActivityCmd = serde_json::from_str(&message).unwrap();
+            let mut activity_cmd: ActivityCmd = serde_json::from_str(&message).unwrap();
+
+            activity_cmd.application_id = Some(clone.client_id.clone());
 
             clone.pid = activity_cmd.args.pid;
             clone.nonce = activity_cmd.nonce.clone();
