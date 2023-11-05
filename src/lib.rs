@@ -52,7 +52,7 @@ impl RPCServer {
       // These are default empty servers, and are replaced on start()
       process_server: ProcessServer::new(vec![], mpsc::channel().0, 1),
       client_connector: ClientConnector::new(65447, "".to_string()),
-      ipc_connector: IpcConnector::new(None),
+      ipc_connector: IpcConnector::new(mpsc::channel().0),
     }
   }
 
@@ -82,7 +82,7 @@ impl RPCServer {
     let (ipc_event_sender, ipc_event_receiver) = mpsc::channel();
 
     self.process_server = ProcessServer::new(self.detectable, proc_event_sender, 8);
-    self.ipc_connector = IpcConnector::new(Some(ipc_event_sender));
+    self.ipc_connector = IpcConnector::new(ipc_event_sender);
     self.client_connector = ClientConnector::new(
       1337,
       server::utils::connection_resp()

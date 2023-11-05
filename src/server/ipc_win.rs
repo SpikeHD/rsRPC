@@ -28,14 +28,14 @@ pub struct IpcConnector {
   pub pid: u64,
   pub nonce: String,
   
-  event_sender: Option<mpsc::Sender<ActivityCmd>>,
+  event_sender: mpsc::Sender<ActivityCmd>,
 }
 
 impl IpcConnector {
   /**
    * Create a socket and return a new IpcConnector
    */
-  pub fn new(event_sender: Option<mpsc::Sender<ActivityCmd>>) -> Self {
+  pub fn new(event_sender: mpsc::Sender<ActivityCmd>) -> Self {
     let pipe_handle = Self::create_socket(None);
 
     Self {
@@ -180,11 +180,7 @@ impl IpcConnector {
             clone.pid = activity_cmd.args.pid;
             clone.nonce = activity_cmd.nonce.clone();
 
-            if let Some(sender) = &clone.event_sender {
-              sender.send(activity_cmd).unwrap();
-            } else {
-              logger::log("No event sender, ignoring frame");
-            }
+            clone.event_sender.send(activity_cmd).unwrap();
           }
           PacketType::CLOSE => {
             logger::log("Recieved close");
@@ -199,11 +195,7 @@ impl IpcConnector {
               nonce: clone.nonce.clone(),
             };
 
-            if let Some(sender) = &clone.event_sender {
-              sender.send(activity_cmd).unwrap();
-            } else {
-              logger::log("No event sender, ignoring close");
-            }
+            clone.event_sender.send(activity_cmd).unwrap();
 
             // reset values
             clone.did_handshake = false;
