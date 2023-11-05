@@ -187,6 +187,7 @@ impl IpcConnector {
 
             // Send message with an empty activity
             let activity_cmd = ActivityCmd {
+              application_id: Some(clone.client_id.clone()),
               cmd: "SET_ACTIVITY".to_string(),
               args: ActivityCmdArgs {
                 pid: clone.pid,

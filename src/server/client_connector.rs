@@ -116,16 +116,54 @@ impl ClientConnector {
           continue;
         }
 
+        let activity = ipc_activity.args.activity.as_ref();
+        let button_urls: Vec<String> = match activity {
+          Some(a) => a.buttons.iter().map(|x| x.url.clone()).collect(),
+          None => vec![],
+        };
+        let button_labels: Vec<String> = match activity {
+          Some(a) => a.buttons.iter().map(|x| x.label.clone()).collect(),
+          None => vec![],
+        };
+
         let payload = format!(
-          r#"{{
-            "cmd": "SET_ACTIVITY",
-            "nonce": "{}",
-            "activity": {},
-            "pid": {}
-          }}"#,
-          ipc_activity.nonce,
-          serde_json::to_string(&ipc_activity.args.activity.unwrap()).unwrap(),
-          ipc_activity.args.pid
+          // I don't even know what half of these fields are for yet
+          r#"
+          {{
+            "activity": {{
+              "application_id": "{}",
+              "timestamps": {{
+                "start": {}
+              }},
+              "assets": {},
+              "details": "{}",
+              "state": "{}",
+              "type": 0,
+              "buttons": {},
+              "metadata": {},
+              "flags": 0
+            }},
+            "pid": {},
+            "socketId": "0"
+          }}
+          "#,
+          ipc_activity.application_id.unwrap_or("".to_string()),
+          ipc_activity.args.activity.as_ref().unwrap().timestamps.start,
+          match activity {
+            Some(a) => serde_json::to_string(&a.assets).unwrap(),
+            None => "{}".to_string(),
+          },
+          match activity {
+            Some(a) => a.details.clone(),
+            None => "".to_string(),
+          },
+          match activity {
+            Some(a) => a.state.clone(),
+            None => "".to_string(),
+          },
+          serde_json::to_string(&button_labels).unwrap(),
+          format!(r#"{{ "button_urls": {} }}"#, serde_json::to_string(&button_urls).unwrap()),
+          ipc_activity.args.pid,
         );
 
         logger::log(format!("{}", payload));

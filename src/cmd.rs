@@ -2,6 +2,7 @@ use serde::{Serialize, Deserialize};
 
 #[derive(Serialize, Deserialize)]
 pub struct ActivityCmd {
+  pub application_id: Option<String>,
   pub cmd: String,
   pub args: ActivityCmdArgs,
   pub nonce: String,
