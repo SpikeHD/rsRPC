@@ -1,19 +1,19 @@
-use serde::Deserialize;
+use serde::{Serialize, Deserialize};
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct ActivityCmd {
   pub cmd: String,
   pub args: ActivityCmdArgs,
   pub nonce: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct ActivityCmdArgs {
   pub pid: u64,
   pub activity: Option<Activity>,
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct Activity {
   pub state: String,
   pub details: String,
@@ -23,12 +23,12 @@ pub struct Activity {
   pub instance: bool,
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct Timestamps {
   pub start: i64,
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct Assets {
   #[serde(rename = "large_image")]
   pub large_image: String,
@@ -40,7 +40,7 @@ pub struct Assets {
   pub small_text: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct Button {
   pub label: String,
   pub url: String,

@@ -5,7 +5,22 @@ use std::{
 
 use simple_websockets::{Event, EventHub, Message, Responder};
 
-use crate::logger;
+use crate::{logger, cmd::ActivityCmd};
+
+use super::process::ProcessDetectedEvent;
+
+fn empty_activity(pid: u64, socket_id: String) -> String {
+  format!(
+    r#"
+    {{
+      "activity": null,
+      "pid": {},
+      "socketId": "{}"
+    }}
+  "#,
+    pid, socket_id
+  )
+}
 
 #[derive(Clone)]
 pub struct ClientConnector {
@@ -13,15 +28,32 @@ pub struct ClientConnector {
   server: Arc<Mutex<EventHub>>,
   pub clients: Arc<Mutex<HashMap<u64, Responder>>>,
   data_on_connect: String,
+
+  pub last_pid: Option<u64>,
+  pub last_socket_id: Option<String>,
+
+  pub ipc_event_rec: Arc<Mutex<std::sync::mpsc::Receiver<ActivityCmd>>>,
+  pub proc_event_rec: Arc<Mutex<std::sync::mpsc::Receiver<ProcessDetectedEvent>>>,
 }
 
 impl ClientConnector {
-  pub fn new(port: u16, data_on_connect: String) -> ClientConnector {
+  pub fn new(
+    port: u16,
+    data_on_connect: String,
+    ipc_event_rec: std::sync::mpsc::Receiver<ActivityCmd>,
+    proc_event_rec: std::sync::mpsc::Receiver<ProcessDetectedEvent>,
+  ) -> ClientConnector {
     ClientConnector {
       server: Arc::new(Mutex::new(simple_websockets::launch(port).unwrap())),
       clients: Arc::new(Mutex::new(HashMap::new())),
       data_on_connect,
       port,
+
+      last_pid: None,
+      last_socket_id: None,
+
+      ipc_event_rec: Arc::new(Mutex::new(ipc_event_rec)),
+      proc_event_rec: Arc::new(Mutex::new(proc_event_rec)),
     }
   }
 
@@ -53,6 +85,113 @@ impl ClientConnector {
             responder.send(message);
           }
         }
+      }
+    });
+
+    // Create a thread for each reciever
+    let mut ipc_clone = self.clone();
+    let mut proc_clone = self.clone();
+
+    std::thread::spawn(move || {
+      loop {
+        let ipc_activity = ipc_clone.ipc_event_rec.lock().unwrap().recv().unwrap();
+
+        // if there are no client, skip
+        if ipc_clone.clients.lock().unwrap().len() == 0 {
+          logger::log("No clients connected, skipping");
+          continue;
+        }
+
+        if ipc_activity.args.activity.is_none() {
+          // Send empty payload
+          let payload = empty_activity(
+            ipc_clone.last_pid.unwrap_or_default(),
+            ipc_clone.last_socket_id.clone().unwrap_or_default(),
+          );
+
+          logger::log("Sending empty payload");
+
+          ipc_clone.send_data(payload);
+
+          continue;
+        }
+
+        let payload = format!(
+          r#"{{
+            "cmd": "SET_ACTIVITY",
+            "nonce": "{}",
+            "activity": {},
+            "pid": {}
+          }}"#,
+          ipc_activity.nonce,
+          serde_json::to_string(&ipc_activity.args.activity.unwrap()).unwrap(),
+          ipc_activity.args.pid
+        );
+
+        logger::log(format!("{}", payload));
+
+        logger::log("Sending payload for IPC activity");
+
+        ipc_clone.send_data(payload);
+      }
+    });
+
+    std::thread::spawn(move || {
+      loop {
+        let proc_event = proc_clone.proc_event_rec.lock().unwrap().recv().unwrap();
+        let proc_activity = proc_event.activity;
+
+        // if there are no client, skip
+        if proc_clone.clients.lock().unwrap().len() == 0 {
+          logger::log("No clients connected, skipping");
+          continue;
+        }
+
+        if proc_activity.id == "null" {
+          // Send empty payload
+          let payload = empty_activity(
+            proc_clone.last_pid.unwrap_or_default(),
+            proc_clone.last_socket_id.clone().unwrap_or_default(),
+          );
+
+          logger::log("Sending empty payload");
+
+          proc_clone.send_data(payload);
+
+          continue;
+        }
+
+        let payload = format!(
+          // I don't even know what half of these fields are for yet
+          r#"
+          {{
+            "activity": {{
+              "application_id": "{}",
+              "name": "{}",
+              "timestamps": {{
+                "start": {}
+              }},
+              "type": 0,
+              "metadata": {{}},
+              "flags": 0
+            }},
+            "pid": {},
+            "socketId": "{}"
+          }}
+          "#,
+          proc_activity.id,
+          proc_activity.name,
+          proc_activity.timestamp.as_ref().unwrap(),
+          proc_activity.pid.unwrap_or_default(),
+          proc_activity.id
+        );
+
+        proc_clone.last_pid = proc_activity.pid;
+        proc_clone.last_socket_id = Some(proc_activity.id.clone());
+
+        logger::log(format!("Sending payload for activity: {}", proc_activity.name));
+
+        proc_clone.send_data(payload);
       }
     });
   }

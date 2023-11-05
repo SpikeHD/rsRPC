@@ -22,6 +22,7 @@ pub struct ProcessDetectedEvent {
   pub activity: DetectableActivity,
 }
 
+#[derive(Clone)]
 pub struct ProcessServer {
   detected_list: Arc<Mutex<Vec<DetectableActivity>>>,
   detectable_chunks: Arc<Mutex<Vec<Vec<DetectableActivity>>>>,
@@ -31,6 +32,9 @@ pub struct ProcessServer {
   pub scan_wait_ms: u64,
   pub detectable_list: Vec<DetectableActivity>,
   pub event_sender: mpsc::Sender<ProcessDetectedEvent>,
+
+  pub last_pid: Option<u64>,
+  pub last_socket_id: Option<String>,
 }
 
 impl ProcessServer {
@@ -46,6 +50,9 @@ impl ProcessServer {
       scan_wait_ms: 1,
       detectable_list: detectable,
       event_sender,
+
+      last_pid: None,
+      last_socket_id: None,
     }
   }
 
@@ -53,7 +60,8 @@ impl ProcessServer {
     self.detectable_list.extend(detectable);
   }
 
-  pub fn start(self) {
+  pub fn start(&self) {
+    let mut clone = self.clone();
     // Evenly split the detectable list into chunks
     let mut chunks: Vec<Vec<DetectableActivity>> = vec![];
 
@@ -73,18 +81,18 @@ impl ProcessServer {
       }
     }
 
-    *self.detectable_chunks.lock().unwrap() = chunks;
+    *clone.detectable_chunks.lock().unwrap() = chunks;
 
     std::thread::spawn(move || {
       // Run the process scan repeatedly (every 3 seconds)
       loop {
-        let detected = self.scan_for_processes();
+        let detected = clone.scan_for_processes();
         let mut new_game_detected = false;
 
         // If the detected list has changed, send a message to the main thread
         for activity in &detected {
           // If the activity is already in the detected list (by ID), skip
-          if self
+          if clone
             .detected_list
             .lock()
             .unwrap()
@@ -92,7 +100,7 @@ impl ProcessServer {
             .any(|x| x.id == activity.id)
           {
             // Send back the existing activity
-            let found = self
+            let found = clone
               .detected_list
               .lock()
               .unwrap()
@@ -103,7 +111,7 @@ impl ProcessServer {
 
             logger::log(format!("Found existing activity: {}", found.name));
 
-            self
+            clone
               .event_sender
               .send(ProcessDetectedEvent {
                 activity: found.clone(),
@@ -120,7 +128,10 @@ impl ProcessServer {
 
           new_game_detected = true;
 
-          self
+          clone.last_pid = found.pid;
+          clone.last_socket_id = Some(found.id.clone());
+
+          clone
             .event_sender
             .send(ProcessDetectedEvent {
               activity: found.clone(),
@@ -130,7 +141,7 @@ impl ProcessServer {
 
         // If there are no detected processes, send an empty message
         if detected.is_empty() {
-          self
+          clone
             .event_sender
             .send(ProcessDetectedEvent {
               activity: DetectableActivity {
@@ -172,7 +183,7 @@ impl ProcessServer {
 
         if new_game_detected {
           // Set the detected list to the new list
-          *self.detected_list.lock().unwrap() = detected;
+          *clone.detected_list.lock().unwrap() = detected;
         }
 
         std::thread::sleep(Duration::from_secs(5));
