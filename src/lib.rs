@@ -1,6 +1,6 @@
 use detection::DetectableActivity;
 use serde_json::Value;
-use server::{client_connector::ClientConnector, process::ProcessServer};
+use server::{client_connector::ClientConnector, process::ProcessServer, ipc::IpcConnector};
 use std::{path::PathBuf, sync::mpsc};
 
 pub mod detection;
@@ -11,6 +11,7 @@ pub struct RPCServer {
   detectable: Vec<DetectableActivity>,
   process_server: ProcessServer,
   client_connector: ClientConnector,
+  ipc_connector: IpcConnector,
 
   // Milliseconds to wait between each processes scan. Good for limiting CPU usage.
   pub process_scan_ms: Option<u64>,
@@ -50,6 +51,7 @@ impl RPCServer {
       // These are default empty servers, and are replaced on start()
       process_server: ProcessServer::new(vec![], mpsc::channel().0, 1),
       client_connector: ClientConnector::new(65447, "".to_string()),
+      ipc_connector: IpcConnector::new(),
     }
   }
 
@@ -103,6 +105,9 @@ impl RPCServer {
 
     logger::log(format!("Starting client connector on port {}...", self.client_connector.port));
     self.client_connector.start();
+
+    self.ipc_connector.start();
+    logger::log("Starting IPC connector...");
 
     if self.process_scan_ms.is_some() {
       self.process_server.scan_wait_ms = self.process_scan_ms.unwrap();
