@@ -1,3 +1,12 @@
+use std::sync::{Arc, Mutex, mpsc};
+
+use crate::cmd::{ActivityCmd, ActivityCmdArgs};
+use crate::logger;
+use crate::server::utils;
+
+use super::ipc_utils::Handshake;
+use super::ipc_utils::PacketType;
+
 fn get_socket_path() -> PathBuf {
   let xdg_runtime_dir = env::var("XDG_RUNTIME_DIR").unwrap_or_default();
   let tmpdir = env::var("TMPDIR").unwrap_or_default();
@@ -14,4 +23,47 @@ fn get_socket_path() -> PathBuf {
   };
 
   PathBuf::from(format!("{}/discord-ipc", tmp_dir))
+}
+
+#[derive(Clone)]
+pub struct IpcConnector {
+  socket: Arc<Mutex<u32>>,
+  pub did_handshake: bool,
+  pub client_id: String,
+  pub pid: u64,
+  pub nonce: String,
+  
+  event_sender: mpsc::Sender<ActivityCmd>,
+}
+
+impl IpcConnector {
+  /**
+   * Create a socket and return a new IpcConnector
+   */
+  pub fn new(event_sender: mpsc::Sender<ActivityCmd>) -> Self {
+    Self::create_socket(None);
+
+    Self {
+      socket: Arc::new(Mutex::new(0)),
+      did_handshake: false,
+      client_id: "".to_string(),
+      pid: 0,
+      nonce: "".to_string(),
+      event_sender,
+    }
+  }
+
+  /**
+   * Close and delete the socket
+   */
+  pub fn close(&mut self) {}
+
+  /**
+   * ACTUALLY create a socket, and return the handle
+   */
+  fn create_socket(tries: Option<u8>) {}
+
+  pub fn start(&mut self) {}
+
+  fn encode(r_type: PacketType, data: String) {}
 }

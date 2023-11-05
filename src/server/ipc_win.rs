@@ -22,8 +22,8 @@ unsafe impl Send for PipeHandle {}
 
 #[derive(Clone)]
 pub struct IpcConnector {
-  pub socket: Arc<Mutex<PipeHandle>>,
-  pub did_handshake: bool,
+  socket: Arc<Mutex<PipeHandle>>,
+  did_handshake: bool,
   pub client_id: String,
   pub pid: u64,
   pub nonce: String,
