@@ -1,6 +1,7 @@
 extern crate winapi;
 extern crate winapi_util;
 
+use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 use winapi::um::namedpipeapi as pipeapi;
 use winapi::um::winbase;
@@ -8,6 +9,7 @@ use winapi::um::handleapi;
 use std::ptr;
 use std::ffi::c_void;
 
+use crate::cmd::{ActivityCmd, ActivityCmdArgs};
 use crate::logger;
 use crate::server::utils;
 
@@ -17,24 +19,44 @@ use super::ipc_utils::PacketType;
 pub struct PipeHandle(*mut c_void);
 unsafe impl Send for PipeHandle {}
 
+
 #[derive(Clone)]
 pub struct IpcConnector {
   pub socket: Arc<Mutex<PipeHandle>>,
   pub did_handshake: bool,
   pub client_id: String,
+  pub pid: u64,
+  pub nonce: String,
+  
+  event_sender: Option<mpsc::Sender<ActivityCmd>>,
 }
 
 impl IpcConnector {
   /**
    * Create a socket and return a new IpcConnector
    */
-  pub fn new() -> Self {
+  pub fn new(event_sender: Option<mpsc::Sender<ActivityCmd>>) -> Self {
     let pipe_handle = Self::create_socket(None);
 
     Self {
       socket: Arc::new(Mutex::new(PipeHandle(pipe_handle))),
       did_handshake: false,
       client_id: "".to_string(),
+      pid: 0,
+      nonce: "".to_string(),
+      event_sender,
+    }
+  }
+
+  /**
+   * Close and delete the socket
+   */
+  pub fn close(&mut self) {
+    let socket = self.socket.lock().unwrap();
+
+    unsafe {
+      winapi::um::namedpipeapi::DisconnectNamedPipe((*socket).0);
+      winapi::um::handleapi::CloseHandle((*socket).0);
     }
   }
 
@@ -152,16 +174,57 @@ impl IpcConnector {
               logger::log("Did not handshake yet, ignoring frame");
               continue;
             }
+
+            let activity_cmd: ActivityCmd = serde_json::from_str(&message).unwrap();
+
+            clone.pid = activity_cmd.args.pid;
+            clone.nonce = activity_cmd.nonce.clone();
+
+            if let Some(sender) = &clone.event_sender {
+              sender.send(activity_cmd).unwrap();
+            } else {
+              logger::log("No event sender, ignoring frame");
+            }
           }
           PacketType::CLOSE => {
             logger::log("Recieved close");
 
+            // Send message with an empty activity
+            let activity_cmd = ActivityCmd {
+              cmd: "SET_ACTIVITY".to_string(),
+              args: ActivityCmdArgs {
+                pid: clone.pid,
+                activity: None,
+              },
+              nonce: clone.nonce.clone(),
+            };
+
+            if let Some(sender) = &clone.event_sender {
+              sender.send(activity_cmd).unwrap();
+            } else {
+              logger::log("No event sender, ignoring close");
+            }
+
             // reset values
             clone.did_handshake = false;
             clone.client_id = "".to_string();
+            clone.pid = 0;
           }
           PacketType::PING => {
             logger::log("Recieved ping");
+
+            // Send a pong
+            let resp = encode(PacketType::PONG, message);
+
+            unsafe {
+              winapi::um::fileapi::WriteFile(
+                (*socket).0,
+                resp.as_ptr() as *mut c_void,
+                resp.len() as u32,
+                ptr::null_mut(),
+                ptr::null_mut(),
+              );
+            }
           }
           PacketType::PONG => {
             logger::log("Recieved pong");

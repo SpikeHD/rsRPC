@@ -4,6 +4,7 @@ use server::{client_connector::ClientConnector, process::ProcessServer, ipc::Ipc
 use std::{path::PathBuf, sync::mpsc};
 
 pub mod detection;
+pub mod cmd;
 mod logger;
 mod server;
 
@@ -51,7 +52,7 @@ impl RPCServer {
       // These are default empty servers, and are replaced on start()
       process_server: ProcessServer::new(vec![], mpsc::channel().0, 1),
       client_connector: ClientConnector::new(65447, "".to_string()),
-      ipc_connector: IpcConnector::new(),
+      ipc_connector: IpcConnector::new(None),
     }
   }
 
@@ -74,8 +75,14 @@ impl RPCServer {
   }
 
   pub fn start(mut self) {
+    // Ensure the IPC socket is closed
+    self.ipc_connector.close();
+
     let (proc_event_sender, proc_event_receiver) = mpsc::channel();
+    let (ipc_event_sender, ipc_event_receiver) = mpsc::channel();
+
     self.process_server = ProcessServer::new(self.detectable, proc_event_sender, 8);
+    self.ipc_connector = IpcConnector::new(Some(ipc_event_sender));
     self.client_connector = ClientConnector::new(
       1337,
       server::utils::connection_resp()
@@ -85,8 +92,8 @@ impl RPCServer {
     logger::log(format!("Starting client connector on port {}...", self.client_connector.port));
     self.client_connector.start();
 
-    self.ipc_connector.start();
     logger::log("Starting IPC connector...");
+    self.ipc_connector.start();
 
     if self.process_scan_ms.is_some() {
       self.process_server.scan_wait_ms = self.process_scan_ms.unwrap();
@@ -100,8 +107,8 @@ impl RPCServer {
     logger::log("Done! Watching for activity...");
 
     loop {
-      let event = proc_event_receiver.recv().unwrap();
-      let activity = event.activity;
+      let proc_event = proc_event_receiver.recv().unwrap();
+      let proc_activity = proc_event.activity;
 
       // If there are no clients, we don't care
       if self.client_connector.clients.lock().unwrap().len() == 0 {
@@ -111,7 +118,7 @@ impl RPCServer {
 
       match last_activity {
         Some(ref last) => {
-          if activity.id == "null" {
+          if proc_activity.id == "null" {
             // Send empty payload
             let payload = format!(
               r#"
@@ -134,7 +141,7 @@ impl RPCServer {
         }
         None => {
           // We haven't had any activities yet :(
-          if activity.id == "null" {
+          if proc_activity.id == "null" {
             continue;
           }
         }
@@ -158,14 +165,14 @@ impl RPCServer {
           "socketId": "{}"
         }}
         "#,
-        activity.id,
-        activity.name,
-        activity.timestamp.as_ref().unwrap(),
-        activity.pid.unwrap_or_default(),
-        activity.id
+        proc_activity.id,
+        proc_activity.name,
+        proc_activity.timestamp.as_ref().unwrap(),
+        proc_activity.pid.unwrap_or_default(),
+        proc_activity.id
       );
 
-      logger::log(format!("Sending payload for activity: {}", activity.name));
+      logger::log(format!("Sending payload for activity: {}", proc_activity.name));
 
       // Send the empty activity to clear, then send the new activity
       if let Some(ref last) = last_activity {
@@ -174,7 +181,7 @@ impl RPCServer {
         self.client_connector.send_data(empty_payload);
       }
 
-      last_activity = Some(activity.clone());
+      last_activity = Some(proc_activity.clone());
 
       self.client_connector.send_data(payload);
     }
