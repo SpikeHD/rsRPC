@@ -1,8 +1,7 @@
 use std::sync::{mpsc, Arc, Mutex};
-
-use crate::cmd::{ActivityCmd, ActivityCmdArgs};
-use crate::logger;
-use crate::server::utils;
+use std::env;
+use std::path::PathBuf;
+use crate::cmd::ActivityCmd;
 
 use super::ipc_utils::Handshake;
 use super::ipc_utils::PacketType;
