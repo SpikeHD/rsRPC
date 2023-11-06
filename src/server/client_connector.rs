@@ -118,11 +118,11 @@ impl ClientConnector {
 
         let activity = ipc_activity.args.activity.as_ref();
         let button_urls: Vec<String> = match activity {
-          Some(a) => a.buttons.iter().map(|x| x.url.clone()).collect(),
+          Some(a) => a.buttons.as_deref().unwrap_or(&[]).iter().map(|x| x.url.clone()).collect(),
           None => vec![],
         };
         let button_labels: Vec<String> = match activity {
-          Some(a) => a.buttons.iter().map(|x| x.label.clone()).collect(),
+          Some(a) => a.buttons.as_deref().unwrap_or(&[]).iter().map(|x| x.label.clone()).collect(),
           None => vec![],
         };
 
@@ -132,9 +132,7 @@ impl ClientConnector {
           {{
             "activity": {{
               "application_id": "{}",
-              "timestamps": {{
-                "start": {}
-              }},
+              "timestamps": {},
               "assets": {},
               "details": "{}",
               "state": "{}",
@@ -150,24 +148,24 @@ impl ClientConnector {
           }}
           "#,
           ipc_activity.application_id.unwrap_or("".to_string()),
-          ipc_activity
-            .args
-            .activity
-            .as_ref()
-            .unwrap()
-            .timestamps
-            .start,
+          match activity {
+            Some(a) => match a.timestamps {
+              Some(ref t) => serde_json::to_string(&t).unwrap(),
+              None => "{}".to_string(),
+            }
+            None => "{}".to_string(),
+          },
           match activity {
             Some(a) => serde_json::to_string(&a.assets).unwrap(),
             None => "{}".to_string(),
           },
           match activity {
-            Some(a) => a.details.clone(),
-            None => "".to_string(),
+            Some(a) => a.details.as_deref().unwrap_or(""),
+            None => "",
           },
           match activity {
-            Some(a) => a.state.clone(),
-            None => "".to_string(),
+            Some(a) => a.state.as_deref().unwrap_or(""),
+            None => "",
           },
           serde_json::to_string(&button_labels).unwrap(),
           serde_json::to_string(&button_urls).unwrap(),

@@ -16,12 +16,12 @@ pub struct ActivityCmdArgs {
 
 #[derive(Serialize, Deserialize)]
 pub struct Activity {
-  pub state: String,
-  pub details: String,
-  pub timestamps: Timestamps,
-  pub assets: Assets,
-  pub buttons: Vec<Button>,
-  pub instance: bool,
+  pub state: Option<String>,
+  pub details: Option<String>,
+  pub timestamps: Option<Timestamps>,
+  pub assets: Option<Assets>,
+  pub buttons: Option<Vec<Button>>,
+  pub instance: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize)]
