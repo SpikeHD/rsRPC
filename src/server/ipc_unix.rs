@@ -1,11 +1,16 @@
 use std::sync::{mpsc, Arc, Mutex};
 use std::env;
-use std::path::PathBuf;
-use crate::cmd::ActivityCmd;
+use std::os::unix::net::UnixListener;
+use std::time::Duration;
+use std::io::{Read, Write};
+use crate::cmd::{ActivityCmd, ActivityCmdArgs};
+use crate::logger;
+use crate::server::ipc_utils::Handshake;
+use crate::server::utils;
 
 use super::ipc_utils::PacketType;
 
-fn get_socket_path() -> PathBuf {
+fn get_socket_path() -> String {
   let xdg_runtime_dir = env::var("XDG_RUNTIME_DIR").unwrap_or_default();
   let tmpdir = env::var("TMPDIR").unwrap_or_default();
   let tmp = env::var("TMP").unwrap_or_default();
@@ -20,12 +25,12 @@ fn get_socket_path() -> PathBuf {
     temp
   };
 
-  PathBuf::from(format!("{}/discord-ipc", tmp_dir))
+  format!("{}discord-ipc", tmp_dir)
 }
 
 #[derive(Clone)]
 pub struct IpcConnector {
-  socket: Arc<Mutex<u32>>,
+  socket: Arc<Mutex<UnixListener>>,
   pub did_handshake: bool,
   pub client_id: String,
   pub pid: u64,
@@ -39,10 +44,10 @@ impl IpcConnector {
    * Create a socket and return a new IpcConnector
    */
   pub fn new(event_sender: mpsc::Sender<ActivityCmd>) -> Self {
-    Self::create_socket(None);
+    let socket = Self::create_socket(None);
 
     Self {
-      socket: Arc::new(Mutex::new(0)),
+      socket: Arc::new(Mutex::new(socket)),
       did_handshake: false,
       client_id: "".to_string(),
       pid: 0,
@@ -54,27 +59,177 @@ impl IpcConnector {
   /**
    * Close and delete the socket
    */
-  pub fn close(&mut self) {}
+  pub fn close(&mut self) {
+    let socket_addr = self.socket.lock().unwrap().local_addr().unwrap();
+    let path = socket_addr.as_pathname().unwrap_or(std::path::Path::new(""));
+    std::fs::remove_file(path).unwrap_or_default();
+  }
 
   /**
    * ACTUALLY create a socket, and return the handle
    */
-  fn create_socket(_tries: Option<u8>) {}
+  fn create_socket(tries: Option<u8>) -> UnixListener {
+    let socket_path = get_socket_path();
+    let tries = tries.unwrap_or(0);
 
-  pub fn start(&mut self) {}
+    logger::log(format!("Creating socket: {}-{}", socket_path, tries));
 
-  fn encode(r_type: PacketType, data: String) -> Vec<u8> {
-    let mut buffer: Vec<u8> = Vec::new();
+    let socket = UnixListener::bind(format!("{}-{}", socket_path, tries));
 
-    // Write the packet type
-    buffer.extend_from_slice(&u32::to_le_bytes(r_type as u32));
+    match socket {
+      Ok(socket) => socket,
+      Err(err) => {
+        if tries >= 10 {
+          logger::log(format!("Could not create IPC socket after 10 tries: {}", err));
+          panic!("Could not create IPC socket after 10 tries");
+        }
 
-    // Write the data size
-    buffer.extend_from_slice(&u32::to_le_bytes(data.len() as u32));
+        std::thread::sleep(Duration::from_millis(500));
 
-    // Write the data
-    buffer.extend_from_slice(data.as_bytes());
+        Self::create_socket(Some(tries + 1))
+      }
+    }
+  }
 
-    buffer
+  pub fn start(&mut self) {
+    let mut clone = self.clone();
+
+    std::thread::spawn(move || {
+      let socket = clone.socket.lock().unwrap();
+
+      // Forever recieve messages from the socket
+      for stream in socket.incoming() {
+        match stream {
+          Ok(mut stream) => {
+            // Read into buffer
+            let mut buffer = std::io::BufReader::new(&stream);
+
+            // Read the packet type and size
+            let mut packet_type = [0; 4];
+            let mut data_size = [0; 4];
+
+            buffer
+              .by_ref()
+              .take(8)
+              .read_exact(&mut packet_type)
+              .expect("Could not read packet type");
+
+            buffer
+              .by_ref()
+              .take(8)
+              .read_exact(&mut data_size)
+              .expect("Could not read data size");
+
+            // Conver the rest of the buffer to a string
+            let mut message = String::new();
+
+            buffer
+              .by_ref()
+              .take(u32::from_le_bytes(data_size) as u64)
+              .read_to_string(&mut message)
+              .expect("Could not read data");
+
+            let r_type = PacketType::from_u32(u32::from_le_bytes(packet_type));
+
+            logger::log(format!("Recieved message: {}", message));
+
+            match r_type {
+              PacketType::Handshake => {
+                logger::log("Recieved handshake");
+                let data: Handshake = serde_json::from_str(&message).unwrap();
+
+                if data.v != 1 {
+                  panic!("Invalid version: {}", data.v);
+                }
+
+                clone.did_handshake = true;
+                clone.client_id = data.client_id;
+
+                // Send utils::connection_resp()
+                let resp = encode(PacketType::Frame, utils::connection_resp().to_string());
+
+                stream.write_all(&resp).unwrap();
+              },
+              PacketType::Frame => {
+                if !clone.did_handshake {
+                  logger::log("Did not handshake yet, ignoring frame");
+                  continue;
+                }
+    
+                let mut activity_cmd: ActivityCmd = serde_json::from_str(&message).unwrap();
+    
+                activity_cmd.application_id = Some(clone.client_id.clone());
+    
+                clone.pid = activity_cmd.args.pid;
+                clone.nonce = activity_cmd.nonce.clone();
+    
+                clone.event_sender.send(activity_cmd).unwrap();
+              },
+              PacketType::Close => {
+                logger::log("Recieved close");
+
+                // Send message with an empty activity
+                let activity_cmd = ActivityCmd {
+                  application_id: Some(clone.client_id.clone()),
+                  cmd: "SET_ACTIVITY".to_string(),
+                  args: ActivityCmdArgs {
+                    pid: clone.pid,
+                    activity: None,
+                  },
+                  nonce: clone.nonce.clone(),
+                };
+
+                clone.event_sender.send(activity_cmd).unwrap();
+
+                // reset values
+                clone.did_handshake = false;
+                clone.client_id = "".to_string();
+                clone.pid = 0;
+
+                // Delete and recreate socket
+                let mut socket = clone.socket.lock().unwrap();
+
+                let socket_addr = socket.local_addr().unwrap();
+                let path = socket_addr.as_pathname().unwrap_or(std::path::Path::new(""));
+
+                std::fs::remove_file(path).unwrap_or_default();
+
+                *socket = Self::create_socket(None);
+              },
+              PacketType::Ping => {
+                logger::log("Recieved ping");
+
+                // Send a pong
+                let resp = encode(PacketType::Pong, message);
+
+                stream.write_all(&resp).unwrap();
+              },
+              PacketType::Pong => {
+                logger::log("Recieved pong");
+              }
+            }
+          }
+          Err(err) => {
+            logger::log(format!("Error: {}", err));
+            break;
+          }
+        }
+      }
+    });
+
+    fn encode(r_type: PacketType, data: String) -> Vec<u8> {
+      let mut buffer: Vec<u8> = Vec::new();
+  
+      // Write the packet type
+      buffer.extend_from_slice(&u32::to_le_bytes(r_type as u32));
+  
+      // Write the data size
+      buffer.extend_from_slice(&u32::to_le_bytes(data.len() as u32));
+  
+      // Write the data
+      buffer.extend_from_slice(data.as_bytes());
+  
+      buffer
+    }
   }
 }
