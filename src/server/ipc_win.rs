@@ -112,7 +112,7 @@ impl IpcConnector {
     let mut clone = self.clone();
 
     std::thread::spawn(move || {
-      let socket = clone.socket.lock().unwrap();
+      let mut socket = clone.socket.lock().unwrap();
 
       // Forever recieve messages from the socket
       loop {
@@ -205,6 +205,16 @@ impl IpcConnector {
             clone.did_handshake = false;
             clone.client_id = "".to_string();
             clone.pid = 0;
+
+            // Delete and recreate socket
+            unsafe {
+              winapi::um::namedpipeapi::DisconnectNamedPipe(socket.0);
+              winapi::um::handleapi::CloseHandle(socket.0);
+            }
+
+            let pipe_handle = Self::create_socket(None);
+
+            *socket = PipeHandle(pipe_handle);
           }
           PacketType::Ping => {
             logger::log("Recieved ping");
