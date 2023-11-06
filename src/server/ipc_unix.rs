@@ -3,7 +3,6 @@ use std::env;
 use std::path::PathBuf;
 use crate::cmd::ActivityCmd;
 
-use super::ipc_utils::Handshake;
 use super::ipc_utils::PacketType;
 
 fn get_socket_path() -> PathBuf {
@@ -60,9 +59,22 @@ impl IpcConnector {
   /**
    * ACTUALLY create a socket, and return the handle
    */
-  fn create_socket(tries: Option<u8>) {}
+  fn create_socket(_tries: Option<u8>) {}
 
   pub fn start(&mut self) {}
 
-  fn encode(r_type: PacketType, data: String) {}
+  fn encode(r_type: PacketType, data: String) -> Vec<u8> {
+    let mut buffer: Vec<u8> = Vec::new();
+
+    // Write the packet type
+    buffer.extend_from_slice(&u32::to_le_bytes(r_type as u32));
+
+    // Write the data size
+    buffer.extend_from_slice(&u32::to_le_bytes(data.len() as u32));
+
+    // Write the data
+    buffer.extend_from_slice(data.as_bytes());
+
+    buffer
+  }
 }
