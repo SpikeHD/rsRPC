@@ -5,7 +5,7 @@ use std::{
 
 use simple_websockets::{Event, EventHub, Message, Responder};
 
-use crate::{logger, cmd::ActivityCmd};
+use crate::{cmd::ActivityCmd, logger};
 
 use super::process::ProcessDetectedEvent;
 
@@ -140,7 +140,9 @@ impl ClientConnector {
               "state": "{}",
               "type": 0,
               "buttons": {},
-              "metadata": {},
+              "metadata": {{
+                "button_urls": {}
+              }},
               "flags": 0
             }},
             "pid": {},
@@ -148,7 +150,13 @@ impl ClientConnector {
           }}
           "#,
           ipc_activity.application_id.unwrap_or("".to_string()),
-          ipc_activity.args.activity.as_ref().unwrap().timestamps.start,
+          ipc_activity
+            .args
+            .activity
+            .as_ref()
+            .unwrap()
+            .timestamps
+            .start,
           match activity {
             Some(a) => serde_json::to_string(&a.assets).unwrap(),
             None => "{}".to_string(),
@@ -162,11 +170,11 @@ impl ClientConnector {
             None => "".to_string(),
           },
           serde_json::to_string(&button_labels).unwrap(),
-          format!(r#"{{ "button_urls": {} }}"#, serde_json::to_string(&button_urls).unwrap()),
+          serde_json::to_string(&button_urls).unwrap(),
           ipc_activity.args.pid,
         );
 
-        logger::log(format!("{}", payload));
+        logger::log(&payload);
 
         logger::log("Sending payload for IPC activity");
 
@@ -227,7 +235,10 @@ impl ClientConnector {
         proc_clone.last_pid = proc_activity.pid;
         proc_clone.last_socket_id = Some(proc_activity.id.clone());
 
-        logger::log(format!("Sending payload for activity: {}", proc_activity.name));
+        logger::log(format!(
+          "Sending payload for activity: {}",
+          proc_activity.name
+        ));
 
         proc_clone.send_data(payload);
       }

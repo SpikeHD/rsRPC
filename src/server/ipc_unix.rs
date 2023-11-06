@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex, mpsc};
+use std::sync::{mpsc, Arc, Mutex};
 
 use crate::cmd::{ActivityCmd, ActivityCmdArgs};
 use crate::logger;
@@ -13,13 +13,13 @@ fn get_socket_path() -> PathBuf {
   let tmp = env::var("TMP").unwrap_or_default();
   let temp = env::var("TEMP").unwrap_or_default();
   let tmp_dir = if !xdg_runtime_dir.is_empty() {
-      xdg_runtime_dir
+    xdg_runtime_dir
   } else if !tmpdir.is_empty() {
-      tmpdir
+    tmpdir
   } else if !tmp.is_empty() {
-      tmp
+    tmp
   } else {
-      temp
+    temp
   };
 
   PathBuf::from(format!("{}/discord-ipc", tmp_dir))
@@ -32,7 +32,7 @@ pub struct IpcConnector {
   pub client_id: String,
   pub pid: u64,
   pub nonce: String,
-  
+
   event_sender: mpsc::Sender<ActivityCmd>,
 }
 

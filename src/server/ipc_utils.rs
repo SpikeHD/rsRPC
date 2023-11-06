@@ -1,20 +1,20 @@
 pub enum PacketType {
-  HANDSHAKE,
-  FRAME,
-  CLOSE,
-  PING,
-  PONG
+  Handshake,
+  Frame,
+  Close,
+  Ping,
+  Pong,
 }
 
 impl PacketType {
   pub fn from_u32(value: u32) -> Self {
     match value {
-      0 => PacketType::HANDSHAKE,
-      1 => PacketType::FRAME,
-      2 => PacketType::CLOSE,
-      3 => PacketType::PING,
-      4 => PacketType::PONG,
-      _ => panic!("Invalid packet type: {}", value)
+      0 => PacketType::Handshake,
+      1 => PacketType::Frame,
+      2 => PacketType::Close,
+      3 => PacketType::Ping,
+      4 => PacketType::Pong,
+      _ => panic!("Invalid packet type: {}", value),
     }
   }
 }
@@ -22,5 +22,5 @@ impl PacketType {
 #[derive(serde::Deserialize, serde::Serialize)]
 pub struct Handshake {
   pub v: u32,
-  pub client_id: String
+  pub client_id: String,
 }

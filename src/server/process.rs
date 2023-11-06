@@ -44,7 +44,7 @@ impl ProcessServer {
     thread_count: u16,
   ) -> Self {
     ProcessServer {
-      thread_count: thread_count,
+      thread_count,
       detected_list: Arc::new(Mutex::new(vec![])),
       detectable_chunks: Arc::new(Mutex::new(vec![])),
       scan_wait_ms: 1,
@@ -226,10 +226,10 @@ impl ProcessServer {
           if obj.executables.is_none() {
             continue;
           }
-    
+
           // It's fine if this is a little slow so as to not crank the CPU
           std::thread::sleep(std::time::Duration::from_millis(scan_wait_ms));
-    
+
           for process in &processes {
             // detectable['executables'] is an array of objects with keys is_launcher, name, and os
             for executable in obj.executables.as_ref().unwrap() {
@@ -240,7 +240,7 @@ impl ProcessServer {
                 // Push the whole game
                 let mut new_activity = obj.clone();
                 new_activity.pid = Some(process.pid);
-    
+
                 // Set timestamp to JS timestamp
                 new_activity.timestamp = Some(format!(
                   "{:?}",
@@ -249,7 +249,7 @@ impl ProcessServer {
                     .unwrap()
                     .as_millis()
                 ));
-    
+
                 thread_detected_list.push(new_activity);
               }
             }

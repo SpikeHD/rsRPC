@@ -1,13 +1,13 @@
 extern crate winapi;
 extern crate winapi_util;
 
+use std::ffi::c_void;
+use std::ptr;
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
+use winapi::um::handleapi;
 use winapi::um::namedpipeapi as pipeapi;
 use winapi::um::winbase;
-use winapi::um::handleapi;
-use std::ptr;
-use std::ffi::c_void;
 
 use crate::cmd::{ActivityCmd, ActivityCmdArgs};
 use crate::logger;
@@ -19,7 +19,6 @@ use super::ipc_utils::PacketType;
 pub struct PipeHandle(*mut c_void);
 unsafe impl Send for PipeHandle {}
 
-
 #[derive(Clone)]
 pub struct IpcConnector {
   socket: Arc<Mutex<PipeHandle>>,
@@ -27,7 +26,7 @@ pub struct IpcConnector {
   pub client_id: String,
   pub pid: u64,
   pub nonce: String,
-  
+
   event_sender: mpsc::Sender<ActivityCmd>,
 }
 
@@ -55,8 +54,8 @@ impl IpcConnector {
     let socket = self.socket.lock().unwrap();
 
     unsafe {
-      winapi::um::namedpipeapi::DisconnectNamedPipe((*socket).0);
-      winapi::um::handleapi::CloseHandle((*socket).0);
+      winapi::um::namedpipeapi::DisconnectNamedPipe(socket.0);
+      winapi::um::handleapi::CloseHandle(socket.0);
     }
   }
 
@@ -81,14 +80,14 @@ impl IpcConnector {
         pipe_path_wide.as_ptr(),
         winbase::PIPE_ACCESS_DUPLEX,
         winbase::PIPE_TYPE_BYTE | winbase::PIPE_READMODE_BYTE | winbase::PIPE_WAIT,
-        1, // Maximum number of instances
+        1,    // Maximum number of instances
         1024, // Out buffer size
         1024, // In buffer size
-        0, // Default timeout
+        0,    // Default timeout
         ptr::null_mut(),
       )
     };
-    
+
     let error_code = unsafe { winapi::um::errhandlingapi::GetLastError() };
 
     // Retry if needed
@@ -122,7 +121,7 @@ impl IpcConnector {
 
         unsafe {
           winapi::um::fileapi::ReadFile(
-            (*socket).0,
+            socket.0,
             buffer.as_mut_ptr() as *mut c_void,
             buffer.len() as u32,
             &mut bytes_read,
@@ -135,7 +134,9 @@ impl IpcConnector {
           continue;
         }
 
-        let r_type = PacketType::from_u32(u32::from_le_bytes([buffer[0], buffer[1], buffer[2], buffer[3]]));
+        let r_type = PacketType::from_u32(u32::from_le_bytes([
+          buffer[0], buffer[1], buffer[2], buffer[3],
+        ]));
         let data_size = u32::from_le_bytes([buffer[4], buffer[5], buffer[6], buffer[7]]);
 
         // Convert the buffer to a string
@@ -145,7 +146,7 @@ impl IpcConnector {
         logger::log(&format!("Recieved message: {}", message));
 
         match r_type {
-          PacketType::HANDSHAKE => {
+          PacketType::Handshake => {
             let data: Handshake = serde_json::from_str(&message).unwrap();
 
             if data.v != 1 {
@@ -153,11 +154,11 @@ impl IpcConnector {
             }
 
             // Send utils::connection_resp()
-            let resp = encode(PacketType::FRAME, utils::connection_resp().to_string());
+            let resp = encode(PacketType::Frame, utils::connection_resp().to_string());
 
             unsafe {
               winapi::um::fileapi::WriteFile(
-                (*socket).0,
+                socket.0,
                 resp.as_ptr() as *mut c_void,
                 resp.len() as u32,
                 ptr::null_mut(),
@@ -168,7 +169,7 @@ impl IpcConnector {
             clone.did_handshake = true;
             clone.client_id = data.client_id;
           }
-          PacketType::FRAME => {
+          PacketType::Frame => {
             logger::log("Recieved frame");
             if !clone.did_handshake {
               logger::log("Did not handshake yet, ignoring frame");
@@ -184,7 +185,7 @@ impl IpcConnector {
 
             clone.event_sender.send(activity_cmd).unwrap();
           }
-          PacketType::CLOSE => {
+          PacketType::Close => {
             logger::log("Recieved close");
 
             // Send message with an empty activity
@@ -205,15 +206,15 @@ impl IpcConnector {
             clone.client_id = "".to_string();
             clone.pid = 0;
           }
-          PacketType::PING => {
+          PacketType::Ping => {
             logger::log("Recieved ping");
 
             // Send a pong
-            let resp = encode(PacketType::PONG, message);
+            let resp = encode(PacketType::Pong, message);
 
             unsafe {
               winapi::um::fileapi::WriteFile(
-                (*socket).0,
+                socket.0,
                 resp.as_ptr() as *mut c_void,
                 resp.len() as u32,
                 ptr::null_mut(),
@@ -221,7 +222,7 @@ impl IpcConnector {
               );
             }
           }
-          PacketType::PONG => {
+          PacketType::Pong => {
             logger::log("Recieved pong");
           }
         }

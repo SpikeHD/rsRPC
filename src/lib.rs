@@ -1,10 +1,13 @@
-use std::{path::PathBuf, sync::{mpsc, Arc, Mutex}};
-use serde_json::Value;
-use server::{client_connector::ClientConnector, process::ProcessServer, ipc::IpcConnector};
 use detection::DetectableActivity;
+use serde_json::Value;
+use server::{client_connector::ClientConnector, ipc::IpcConnector, process::ProcessServer};
+use std::{
+  path::PathBuf,
+  sync::{mpsc, Arc, Mutex},
+};
 
-pub mod detection;
 pub mod cmd;
+pub mod detection;
 mod logger;
 mod server;
 
@@ -38,7 +41,12 @@ impl RPCServer {
 
       // These are default empty servers, and are replaced on start()
       process_server: Arc::new(Mutex::new(ProcessServer::new(vec![], mpsc::channel().0, 1))),
-      client_connector: Arc::new(Mutex::new(ClientConnector::new(65447, "".to_string(), mpsc::channel().1, mpsc::channel().1))),
+      client_connector: Arc::new(Mutex::new(ClientConnector::new(
+        65447,
+        "".to_string(),
+        mpsc::channel().1,
+        mpsc::channel().1,
+      ))),
       ipc_connector: Arc::new(Mutex::new(IpcConnector::new(mpsc::channel().0))),
     }
   }
@@ -58,7 +66,11 @@ impl RPCServer {
    * Add new detectable processes on-the-fly. This should be run AFTER start().
    */
   pub fn append_detectables(&mut self, detectable: Vec<DetectableActivity>) {
-    self.process_server.lock().unwrap().append_detectables(detectable);
+    self
+      .process_server
+      .lock()
+      .unwrap()
+      .append_detectables(detectable);
   }
 
   pub fn start(mut self) {
@@ -71,7 +83,7 @@ impl RPCServer {
     self.process_server = Arc::new(Mutex::new(ProcessServer::new(
       self.detectable.lock().unwrap().to_vec(),
       proc_event_sender,
-      8
+      8,
     )));
     self.ipc_connector = Arc::new(Mutex::new(IpcConnector::new(ipc_event_sender)));
     self.client_connector = Arc::new(Mutex::new(ClientConnector::new(
@@ -81,7 +93,10 @@ impl RPCServer {
       proc_event_receiver,
     )));
 
-    logger::log(format!("Starting client connector on port {}...", self.client_connector.lock().unwrap().port));
+    logger::log(format!(
+      "Starting client connector on port {}...",
+      self.client_connector.lock().unwrap().port
+    ));
     self.client_connector.lock().unwrap().start();
 
     logger::log("Starting IPC connector...");
