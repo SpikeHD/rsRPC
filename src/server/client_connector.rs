@@ -192,6 +192,11 @@ impl ClientConnector {
         }
 
         if proc_activity.id == "null" {
+          // If our last socket id is empty, skip
+          if proc_clone.last_socket_id.is_none() {
+            continue;
+          }
+
           // Send empty payload
           let payload = empty_activity(
             proc_clone.last_pid.unwrap_or_default(),
@@ -201,6 +206,8 @@ impl ClientConnector {
           logger::log("Sending empty payload");
 
           proc_clone.send_data(payload);
+
+          proc_clone.last_socket_id = None;
 
           continue;
         }
