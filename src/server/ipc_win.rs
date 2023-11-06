@@ -97,7 +97,7 @@ impl IpcConnector {
       }
     }
 
-    eprintln!("Created IPC socket: {}", pipe_path);
+    logger::log(format!("Created IPC socket: {}", pipe_path));
 
     pipe_handle
   }

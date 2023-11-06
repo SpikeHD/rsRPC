@@ -12,7 +12,7 @@
 # Features
 
 * Basic process detection
-  * More advanced RPC is coming soon™ 
+* Socket-based RPC detection
 * Add new processes on the fly
 * Customize process scanning speed
 
