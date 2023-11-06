@@ -106,7 +106,7 @@ impl ClientConnector {
           // Send empty payload
           let payload = empty_activity(
             ipc_clone.last_pid.unwrap_or_default(),
-            ipc_clone.last_socket_id.clone().unwrap_or_default(),
+            "0".to_string(),
           );
 
           logger::log("Sending empty payload");
