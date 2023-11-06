@@ -24,7 +24,7 @@
 
 ## Testing it out
 
-1. Download a binary from [actions](https://www.github.com/SpikeHD/rsRPC/actions), from the [releases](https://www.github.com/SpikeHD/rsRPC/releases) page, or build it yourself below!
+1. Download a binary from [actions](https://www.github.com/SpikeHD/rsRPC/actions) or build it yourself below!
 2. Place a `detectable.json` file in the same directory as the binary (you can use [the arRPC one](https://raw.githubusercontent.com/OpenAsar/arrpc/main/src/process/detectable.json) as an example)
 3. Run the binary with `./rsrpc -d ./detectable.json`
 
@@ -42,7 +42,7 @@
 
 ```toml
 [dependencies]
-rsrpc = { git = "https://www.github.com/SpikeHD/rsRPC" }
+rsrpc = { git = "https://www.github.com/SpikeHD/rsRPC", branch = "VERSION_NUMBER_HERE" }
 ```
 
 2. Use the library in your code:
@@ -54,8 +54,8 @@ fn main() {
   let mut server = RPCServer::from_file("./detectable.json");
 
   // This is optional, but highly reccommended. It will change the buffer time in between each process in the process scan, which is triggered once every 5 seconds.
-  // Around 100ms tends to be pretty performant, while small numbers tend to make the CPU work somewhat hard.
-  server.process_scan_ms = 100;
+  // Around 75ms tends to be pretty performant, while small numbers tend to make the CPU do more work.
+  server.process_scan_ms = 75;
 
   server.start();
 }
