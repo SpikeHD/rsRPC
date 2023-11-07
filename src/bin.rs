@@ -10,21 +10,12 @@ pub fn main() {
   struct Args {
     #[arg(short, long, default_value = "false")]
     detectable_file: PathBuf,
-
-    #[arg(short, long, default_value = None)]
-    process_scan_ms: Option<String>,
   }
 
   let args = Args::parse();
 
   // Create new client and stuff
-  let mut client = rsrpc::RPCServer::from_file(args.detectable_file);
-
-  client.process_scan_ms = Some(25);
-
-  if args.process_scan_ms.is_some() {
-    client.process_scan_ms = Some(args.process_scan_ms.unwrap().parse::<u64>().unwrap());
-  }
+  let client = rsrpc::RPCServer::from_file(args.detectable_file);
 
   // When running as a binary, enable logs
   std::env::set_var("RSRPC_LOGS_ENABLED", "1");

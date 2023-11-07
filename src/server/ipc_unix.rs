@@ -99,6 +99,9 @@ impl IpcConnector {
 
       // Forever recieve messages from the socket
       for stream in socket.incoming() {
+        // Little baby delay to keep things smooth
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        
         match stream {
           Ok(mut stream) => {
             // Read into buffer

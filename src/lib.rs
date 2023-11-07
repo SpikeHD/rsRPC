@@ -16,9 +16,6 @@ pub struct RPCServer {
   process_server: Arc<Mutex<ProcessServer>>,
   client_connector: Arc<Mutex<ClientConnector>>,
   ipc_connector: Arc<Mutex<IpcConnector>>,
-
-  // Milliseconds to wait between each processes scan. Good for limiting CPU usage.
-  pub process_scan_ms: Option<u64>,
 }
 
 impl RPCServer {
@@ -37,7 +34,6 @@ impl RPCServer {
 
     Self {
       detectable: Arc::new(Mutex::new(detectable)),
-      process_scan_ms: None,
 
       // These are default empty servers, and are replaced on start()
       process_server: Arc::new(Mutex::new(ProcessServer::new(vec![], mpsc::channel().0, 1))),
@@ -101,10 +97,6 @@ impl RPCServer {
 
     logger::log("Starting IPC connector...");
     self.ipc_connector.lock().unwrap().start();
-
-    if self.process_scan_ms.is_some() {
-      self.process_server.lock().unwrap().scan_wait_ms = self.process_scan_ms.unwrap();
-    }
 
     logger::log("Starting process server...");
     self.process_server.lock().unwrap().start();

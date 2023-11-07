@@ -4,6 +4,8 @@ use std::sync::Mutex;
 use std::time::Duration;
 use std::vec;
 
+use rayon::prelude::*;
+
 use sysinfo::ProcessExt;
 use sysinfo::SystemExt;
 
@@ -28,8 +30,6 @@ pub struct ProcessServer {
   detectable_chunks: Arc<Mutex<Vec<Vec<DetectableActivity>>>>,
   thread_count: u16,
 
-  // ms to wait in between each process scan
-  pub scan_wait_ms: u64,
   pub detectable_list: Vec<DetectableActivity>,
   pub event_sender: mpsc::Sender<ProcessDetectedEvent>,
 
@@ -47,7 +47,6 @@ impl ProcessServer {
       thread_count,
       detected_list: Arc::new(Mutex::new(vec![])),
       detectable_chunks: Arc::new(Mutex::new(vec![])),
-      scan_wait_ms: 1,
       detectable_list: detectable,
       event_sender,
 
@@ -186,7 +185,7 @@ impl ProcessServer {
           *clone.detected_list.lock().unwrap() = detected;
         }
 
-        std::thread::sleep(Duration::from_secs(5));
+        std::thread::sleep(Duration::from_secs(10));
       }
     });
   }
@@ -206,69 +205,49 @@ impl ProcessServer {
   }
 
   pub fn scan_for_processes(&self) -> Vec<DetectableActivity> {
-    let mut detected_list = vec![];
-    let chunks = self.detectable_chunks.lock().unwrap().clone();
-    let scan_wait_ms = self.scan_wait_ms;
+    let chunks = self.detectable_chunks.lock().unwrap();
+    let processes = ProcessServer::process_list();
 
     logger::log("Process scan triggered");
 
-    // Create a pool of threads, and split the detectable list into chunks
-    let mut thread_handles = vec![];
+    let detected_list: Vec<Vec<DetectableActivity>> = (0..8)
+      .into_par_iter()  // Parallel iterator from Rayon
+      .map(|i| {
+        let detectable_chunk = &chunks[i as usize];
 
-    for i in 0..self.thread_count {
-      let detectable_list = chunks[i as usize].clone();
-      let mut thread_detected_list = vec![];
-      let processes = ProcessServer::process_list();
-
-      let thread = std::thread::spawn(move || {
-        for obj in detectable_list {
-          // if executables is null, just skip
-          if obj.executables.is_none() {
-            continue;
-          }
-
-          // It's fine if this is a little slow so as to not crank the CPU
-          std::thread::sleep(std::time::Duration::from_millis(scan_wait_ms));
-
-          for process in &processes {
-            // detectable['executables'] is an array of objects with keys is_launcher, name, and os
-            for executable in obj.executables.as_ref().unwrap() {
-              // If this game is not in the list of already detected games, and the executable name matches, add
-              if executable.name.to_lowercase() == *process.name.to_lowercase()
-                || executable.name.to_lowercase() == name_no_ext(process.name.to_lowercase())
-              {
-                // Push the whole game
-                let mut new_activity = obj.clone();
-                new_activity.pid = Some(process.pid);
-
-                // Set timestamp to JS timestamp
-                new_activity.timestamp = Some(format!(
-                  "{:?}",
-                  std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap()
-                    .as_millis()
-                ));
-
-                thread_detected_list.push(new_activity);
+        detectable_chunk.iter().filter_map(|obj| {
+          if let Some(executables) = &obj.executables {
+            for executable in executables {
+              for process in &processes {
+                let process_name_lowercase = process.name.to_lowercase();
+                if executable.name.to_lowercase() == process_name_lowercase
+                  || executable.name.to_lowercase() == name_no_ext(process_name_lowercase)
+                {
+                  let mut new_activity = obj.clone();
+                  new_activity.pid = Some(process.pid);
+                  new_activity.timestamp = Some(format!(
+                    "{:?}",
+                    std::time::SystemTime::now()
+                      .duration_since(std::time::UNIX_EPOCH)
+                      .unwrap()
+                      .as_millis()
+                  ));
+                  return Some(new_activity);
+                }
               }
             }
           }
-        }
+          
+          None
+        }).collect()
+      })
+      .collect();
 
-        thread_detected_list
-      });
+    let mut detected_list_flat: Vec<DetectableActivity> = detected_list.into_iter().flatten().collect();
+    
+    detected_list_flat.shrink_to_fit();
 
-      thread_handles.push(thread);
-    }
-
-    for handle in thread_handles {
-      let detected_by_thread = handle.join().unwrap();
-      detected_list.extend(detected_by_thread);
-    }
-
-    // Overwrite self.detected_list with the new list
-    detected_list
+    detected_list_flat
   }
 }
 

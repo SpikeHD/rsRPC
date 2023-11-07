@@ -16,6 +16,7 @@ serde = { version = "1.0.166", features = ["derive"] }
 serde_json = "1.0"
 simple-websockets = "0.1.6"
 chrono = "0.4.13"
+rayon = "1.8.0"
 
 #[cfg(target_os = "windows")]
 winapi = { version = "0.3.9", features = ["namedpipeapi"] }

@@ -113,6 +113,9 @@ impl IpcConnector {
 
       // Forever recieve messages from the socket
       loop {
+        // Little baby delay to keep things smooth
+        std::thread::sleep(std::time::Duration::from_millis(5));
+
         let mut buffer: [u8; 1024] = [0; 1024];
         let mut bytes_read: u32 = 0;
 
