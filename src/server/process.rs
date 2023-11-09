@@ -99,7 +99,13 @@ impl ProcessServer {
             .any(|x| x.id == activity.id)
           {
             // Send back the existing activity
-            if let Some(found) = clone.detected_list.lock().unwrap().iter().find(|x| x.id == activity.id) {
+            if let Some(found) = clone
+              .detected_list
+              .lock()
+              .unwrap()
+              .iter()
+              .find(|x| x.id == activity.id)
+            {
               logger::log(format!("Found existing activity: {}", found.name));
               clone
                 .event_sender
@@ -229,14 +235,14 @@ impl ProcessServer {
               }
             }
           }
-          
           None
         }).collect()
       })
       .collect();
 
-    let mut detected_list_flat: Vec<DetectableActivity> = detected_list.into_iter().flatten().collect();
-    
+    let mut detected_list_flat: Vec<DetectableActivity> =
+      detected_list.into_iter().flatten().collect();
+
     detected_list_flat.shrink_to_fit();
 
     detected_list_flat

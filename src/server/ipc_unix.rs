@@ -1,12 +1,12 @@
-use std::sync::{mpsc, Arc, Mutex};
-use std::env;
-use std::os::unix::net::UnixListener;
-use std::time::Duration;
-use std::io::{Read, Write};
 use crate::cmd::{ActivityCmd, ActivityCmdArgs};
 use crate::logger;
 use crate::server::ipc_utils::Handshake;
 use crate::server::utils;
+use std::env;
+use std::io::{Read, Write};
+use std::os::unix::net::UnixListener;
+use std::sync::{mpsc, Arc, Mutex};
+use std::time::Duration;
 
 use super::ipc_utils::PacketType;
 
@@ -61,7 +61,9 @@ impl IpcConnector {
    */
   pub fn close(&mut self) {
     let socket_addr = self.socket.lock().unwrap().local_addr().unwrap();
-    let path = socket_addr.as_pathname().unwrap_or(std::path::Path::new(""));
+    let path = socket_addr
+      .as_pathname()
+      .unwrap_or(std::path::Path::new(""));
     std::fs::remove_file(path).unwrap_or_default();
   }
 
@@ -80,7 +82,10 @@ impl IpcConnector {
       Ok(socket) => socket,
       Err(err) => {
         if tries >= 10 {
-          logger::log(format!("Could not create IPC socket after 10 tries: {}", err));
+          logger::log(format!(
+            "Could not create IPC socket after 10 tries: {}",
+            err
+          ));
           panic!("Could not create IPC socket after 10 tries");
         }
 
@@ -101,7 +106,7 @@ impl IpcConnector {
       for stream in socket.incoming() {
         // Little baby delay to keep things smooth
         std::thread::sleep(std::time::Duration::from_millis(5));
-        
+
         match stream {
           Ok(mut stream) => {
             // Read into buffer
@@ -158,28 +163,28 @@ impl IpcConnector {
                   Ok(_) => _,
                   Err(err) => logger::log("Error sending connection response"),
                 }
-              },
+              }
               PacketType::Frame => {
                 if !clone.did_handshake {
                   logger::log("Did not handshake yet, ignoring frame");
                   continue;
                 }
-    
+
                 let Ok(mut activity_cmd) = serde_json::from_str::<ActivityCmd>(&message) else {
                   logger::log(format!("Error parsing activity command: {}", err));
                   continue;
                 };
-    
+
                 activity_cmd.application_id = Some(clone.client_id.clone());
-    
+
                 clone.pid = activity_cmd.args.pid;
                 clone.nonce = activity_cmd.nonce.clone();
-    
+
                 match clone.event_sender.send(activity_cmd) {
                   Ok(_) => _,
                   Err(err) => logger::log("Error sending activity command"),
                 }
-              },
+              }
               PacketType::Close => {
                 logger::log("Recieved close");
 
@@ -208,12 +213,14 @@ impl IpcConnector {
                 let mut socket = clone.socket.lock().unwrap();
 
                 let socket_addr = socket.local_addr().unwrap();
-                let path = socket_addr.as_pathname().unwrap_or(std::path::Path::new(""));
+                let path = socket_addr
+                  .as_pathname()
+                  .unwrap_or(std::path::Path::new(""));
 
                 std::fs::remove_file(path).unwrap_or_default();
 
                 *socket = Self::create_socket(None);
-              },
+              }
               PacketType::Ping => {
                 logger::log("Recieved ping");
 
@@ -224,7 +231,7 @@ impl IpcConnector {
                   Ok(_) => _,
                   Err(err) => logger::log("Error sending pong"),
                 };
-              },
+              }
               PacketType::Pong => {
                 logger::log("Recieved pong");
               }
@@ -240,16 +247,16 @@ impl IpcConnector {
 
     fn encode(r_type: PacketType, data: String) -> Vec<u8> {
       let mut buffer: Vec<u8> = Vec::new();
-  
+
       // Write the packet type
       buffer.extend_from_slice(&u32::to_le_bytes(r_type as u32));
-  
+
       // Write the data size
       buffer.extend_from_slice(&u32::to_le_bytes(data.len() as u32));
-  
+
       // Write the data
       buffer.extend_from_slice(data.as_bytes());
-  
+
       buffer
     }
   }

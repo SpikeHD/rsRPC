@@ -1,4 +1,3 @@
-use std::error::Error;
 use std::ffi::c_void;
 use std::ptr;
 use std::sync::mpsc;

@@ -104,10 +104,7 @@ impl ClientConnector {
 
         if ipc_activity.args.activity.is_none() {
           // Send empty payload
-          let payload = empty_activity(
-            ipc_clone.last_pid.unwrap_or_default(),
-            "0".to_string(),
-          );
+          let payload = empty_activity(ipc_clone.last_pid.unwrap_or_default(), "0".to_string());
 
           logger::log("Sending empty payload");
 
@@ -118,11 +115,23 @@ impl ClientConnector {
 
         let activity = ipc_activity.args.activity.as_ref();
         let button_urls: Vec<String> = match activity {
-          Some(a) => a.buttons.as_deref().unwrap_or(&[]).iter().map(|x| x.url.clone()).collect(),
+          Some(a) => a
+            .buttons
+            .as_deref()
+            .unwrap_or(&[])
+            .iter()
+            .map(|x| x.url.clone())
+            .collect(),
           None => vec![],
         };
         let button_labels: Vec<String> = match activity {
-          Some(a) => a.buttons.as_deref().unwrap_or(&[]).iter().map(|x| x.label.clone()).collect(),
+          Some(a) => a
+            .buttons
+            .as_deref()
+            .unwrap_or(&[])
+            .iter()
+            .map(|x| x.label.clone())
+            .collect(),
           None => vec![],
         };
 
@@ -152,7 +161,7 @@ impl ClientConnector {
             Some(a) => match a.timestamps {
               Some(ref t) => serde_json::to_string(&t).unwrap_or("".to_string()),
               None => "{}".to_string(),
-            }
+            },
             None => "{}".to_string(),
           },
           match activity {

@@ -10,7 +10,6 @@ pub mod cmd;
 pub mod detection;
 mod logger;
 mod server;
-
 pub struct RPCServer {
   detectable: Arc<Mutex<Vec<DetectableActivity>>>,
   process_server: Arc<Mutex<ProcessServer>>,
@@ -29,7 +28,8 @@ impl RPCServer {
     let detectable: Vec<DetectableActivity>;
 
     if let Some(detectable_arr) = detectable_arr {
-      detectable = detectable_arr.iter()
+      detectable = detectable_arr
+        .iter()
         .map(|x| serde_json::from_value(x.clone()).expect("Detectable list malformed!"))
         .collect();
     } else {
@@ -60,7 +60,7 @@ impl RPCServer {
     let detectable = std::fs::read_to_string(&file)
       .unwrap_or_else(|_| panic!("RPCServer could not find file: {:?}", file.display()));
 
-    Ok(Self::from_json_str(detectable.as_str())?)
+    Self::from_json_str(detectable.as_str())
   }
 
   /**

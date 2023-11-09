@@ -15,7 +15,8 @@ pub fn main() {
   let args = Args::parse();
 
   // Create new client and stuff
-  let client = rsrpc::RPCServer::from_file(args.detectable_file).expect("Failed to create RPCServer");
+  let client =
+    rsrpc::RPCServer::from_file(args.detectable_file).expect("Failed to create RPCServer");
 
   // When running as a binary, enable logs
   std::env::set_var("RSRPC_LOGS_ENABLED", "1");
