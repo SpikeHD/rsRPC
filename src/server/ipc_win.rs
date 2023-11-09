@@ -1,3 +1,4 @@
+use std::error::Error;
 use std::ffi::c_void;
 use std::ptr;
 use std::sync::mpsc;
@@ -147,7 +148,10 @@ impl IpcConnector {
 
         match r_type {
           PacketType::Handshake => {
-            let data: Handshake = serde_json::from_str(&message).unwrap();
+            let Ok(data) = serde_json::from_str::<Handshake>(&message) else {
+              logger::log("Error parsing handshake");
+              continue;
+            };
 
             if data.v != 1 {
               panic!("Invalid version: {}", data.v);
@@ -176,14 +180,20 @@ impl IpcConnector {
               continue;
             }
 
-            let mut activity_cmd: ActivityCmd = serde_json::from_str(&message).unwrap();
+            let Ok(mut activity_cmd) = serde_json::from_str::<ActivityCmd>(&message) else {
+              logger::log("Error parsing activity command");
+              continue;
+            };
 
             activity_cmd.application_id = Some(clone.client_id.clone());
 
             clone.pid = activity_cmd.args.pid;
             clone.nonce = activity_cmd.nonce.clone();
 
-            clone.event_sender.send(activity_cmd).unwrap();
+            match clone.event_sender.send(activity_cmd) {
+              Ok(_) => (),
+              Err(err) => logger::log(format!("Error sending activity command: {}", err)),
+            };
           }
           PacketType::Close => {
             logger::log("Recieved close");
@@ -199,7 +209,10 @@ impl IpcConnector {
               nonce: clone.nonce.clone(),
             };
 
-            clone.event_sender.send(activity_cmd).unwrap();
+            match clone.event_sender.send(activity_cmd) {
+              Ok(_) => (),
+              Err(err) => logger::log(format!("Error sending activity command: {}", err)),
+            };
 
             // reset values
             clone.did_handshake = false;

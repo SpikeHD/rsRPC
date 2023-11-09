@@ -99,23 +99,15 @@ impl ProcessServer {
             .any(|x| x.id == activity.id)
           {
             // Send back the existing activity
-            let found = clone
-              .detected_list
-              .lock()
-              .unwrap()
-              .iter()
-              .find(|x| x.id == activity.id)
-              .unwrap()
-              .clone();
-
-            logger::log(format!("Found existing activity: {}", found.name));
-
-            clone
-              .event_sender
-              .send(ProcessDetectedEvent {
-                activity: found.clone(),
-              })
-              .unwrap();
+            if let Some(found) = clone.detected_list.lock().unwrap().iter().find(|x| x.id == activity.id) {
+              logger::log(format!("Found existing activity: {}", found.name));
+              clone
+                .event_sender
+                .send(ProcessDetectedEvent {
+                  activity: found.clone(),
+                })
+                .unwrap();
+            }
 
             continue;
           }

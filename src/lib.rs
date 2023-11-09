@@ -19,20 +19,25 @@ pub struct RPCServer {
 }
 
 impl RPCServer {
-  pub fn from_json_str(detectable: impl AsRef<str>) -> Self {
+  pub fn from_json_str(detectable: impl AsRef<str>) -> Result<Self, Box<dyn std::error::Error>> {
     // Parse as JSON, panic if invalid
     let detectable: Value =
       serde_json::from_str(detectable.as_ref()).expect("Invalid JSON provided to RPCServer");
 
     // Turn detectable into a vector of DetectableActivity
-    let detectable: Vec<DetectableActivity> = detectable
-      .as_array()
-      .unwrap()
-      .iter()
-      .map(|x| serde_json::from_value(x.clone()).unwrap())
-      .collect();
+    let detectable_arr = detectable.as_array();
+    let detectable: Vec<DetectableActivity>;
 
-    Self {
+    if let Some(detectable_arr) = detectable_arr {
+      detectable = detectable_arr.iter()
+        .map(|x| serde_json::from_value(x.clone()).expect("Detectable list malformed!"))
+        .collect();
+    } else {
+      println!("Detectable list empty!");
+      detectable = vec![];
+    }
+
+    Ok(Self {
       detectable: Arc::new(Mutex::new(detectable)),
 
       // These are default empty servers, and are replaced on start()
@@ -44,18 +49,18 @@ impl RPCServer {
         mpsc::channel().1,
       ))),
       ipc_connector: Arc::new(Mutex::new(IpcConnector::new(mpsc::channel().0))),
-    }
+    })
   }
 
   /**
    * Create a new RPCServer and read the detectable games list from file.
    */
-  pub fn from_file(file: PathBuf) -> Self {
+  pub fn from_file(file: PathBuf) -> Result<Self, Box<dyn std::error::Error>> {
     // Read the detectable games list from file.
     let detectable = std::fs::read_to_string(&file)
       .unwrap_or_else(|_| panic!("RPCServer could not find file: {:?}", file.display()));
 
-    Self::from_json_str(detectable.as_str())
+    Ok(Self::from_json_str(detectable.as_str())?)
   }
 
   /**

@@ -139,7 +139,10 @@ impl IpcConnector {
             match r_type {
               PacketType::Handshake => {
                 logger::log("Recieved handshake");
-                let data: Handshake = serde_json::from_str(&message).unwrap();
+                let Ok(data) = serde_json::from_str::<Handshake>(&message) else {
+                  logger::log("Error parsing handshake");
+                  continue;
+                };
 
                 if data.v != 1 {
                   panic!("Invalid version: {}", data.v);
@@ -151,7 +154,10 @@ impl IpcConnector {
                 // Send utils::connection_resp()
                 let resp = encode(PacketType::Frame, utils::connection_resp().to_string());
 
-                stream.write_all(&resp).unwrap();
+                match stream.write_all(&resp) {
+                  Ok(_) => _,
+                  Err(err) => logger::log("Error sending connection response"),
+                }
               },
               PacketType::Frame => {
                 if !clone.did_handshake {
@@ -159,14 +165,20 @@ impl IpcConnector {
                   continue;
                 }
     
-                let mut activity_cmd: ActivityCmd = serde_json::from_str(&message).unwrap();
+                let Ok(mut activity_cmd) = serde_json::from_str::<ActivityCmd>(&message) else {
+                  logger::log(format!("Error parsing activity command: {}", err));
+                  continue;
+                };
     
                 activity_cmd.application_id = Some(clone.client_id.clone());
     
                 clone.pid = activity_cmd.args.pid;
                 clone.nonce = activity_cmd.nonce.clone();
     
-                clone.event_sender.send(activity_cmd).unwrap();
+                match clone.event_sender.send(activity_cmd) {
+                  Ok(_) => _,
+                  Err(err) => logger::log("Error sending activity command"),
+                }
               },
               PacketType::Close => {
                 logger::log("Recieved close");
@@ -182,7 +194,10 @@ impl IpcConnector {
                   nonce: clone.nonce.clone(),
                 };
 
-                clone.event_sender.send(activity_cmd).unwrap();
+                match clone.event_sender.send(activity_cmd) {
+                  Ok(_) => _,
+                  Err(err) => logger::log("Error sending activity command"),
+                }
 
                 // reset values
                 clone.did_handshake = false;
@@ -205,7 +220,10 @@ impl IpcConnector {
                 // Send a pong
                 let resp = encode(PacketType::Pong, message);
 
-                stream.write_all(&resp).unwrap();
+                match stream.write_all(&resp) {
+                  Ok(_) => _,
+                  Err(err) => logger::log("Error sending pong"),
+                };
               },
               PacketType::Pong => {
                 logger::log("Recieved pong");

@@ -150,13 +150,13 @@ impl ClientConnector {
           ipc_activity.application_id.unwrap_or("".to_string()),
           match activity {
             Some(a) => match a.timestamps {
-              Some(ref t) => serde_json::to_string(&t).unwrap(),
+              Some(ref t) => serde_json::to_string(&t).unwrap_or("".to_string()),
               None => "{}".to_string(),
             }
             None => "{}".to_string(),
           },
           match activity {
-            Some(a) => serde_json::to_string(&a.assets).unwrap(),
+            Some(a) => serde_json::to_string(&a.assets).unwrap_or("{}".to_string()),
             None => "{}".to_string(),
           },
           match activity {
@@ -167,8 +167,8 @@ impl ClientConnector {
             Some(a) => a.state.as_deref().unwrap_or(""),
             None => "",
           },
-          serde_json::to_string(&button_labels).unwrap(),
-          serde_json::to_string(&button_urls).unwrap(),
+          serde_json::to_string(&button_labels).unwrap_or("".to_string()),
+          serde_json::to_string(&button_urls).unwrap_or("".to_string()),
           ipc_activity.args.pid,
         );
 
@@ -232,7 +232,7 @@ impl ClientConnector {
           "#,
           proc_activity.id,
           proc_activity.name,
-          proc_activity.timestamp.as_ref().unwrap(),
+          proc_activity.timestamp.as_ref().unwrap_or(&"".to_string()),
           proc_activity.pid.unwrap_or_default(),
           proc_activity.id
         );
