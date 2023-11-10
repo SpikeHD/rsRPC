@@ -28,3 +28,14 @@ required-features = ["clap"]
 
 [features]
 binary = ["clap"]
+
+[target.x86_64-unknown-linux-gnu]
+rustflags = [
+  "-C", "link-arg=-fuse-ld=lld",
+]
+
+# Also use lld on macos
+[target.'cfg(target_os = "macos")']
+rustflags = [
+  "-C", "link-arg=-fuse-ld=lld",
+]
