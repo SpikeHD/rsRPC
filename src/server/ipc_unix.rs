@@ -160,8 +160,8 @@ impl IpcConnector {
                 let resp = encode(PacketType::Frame, utils::connection_resp().to_string());
 
                 match stream.write_all(&resp) {
-                  Ok(_) => _,
-                  Err(err) => logger::log("Error sending connection response"),
+                  Ok(_) => (),
+                  Err(err) => logger::log(format!("Error sending connection response: {}", err)),
                 }
               }
               PacketType::Frame => {
@@ -171,7 +171,7 @@ impl IpcConnector {
                 }
 
                 let Ok(mut activity_cmd) = serde_json::from_str::<ActivityCmd>(&message) else {
-                  logger::log(format!("Error parsing activity command: {}", err));
+                  logger::log("Error parsing activity command");
                   continue;
                 };
 
@@ -181,8 +181,8 @@ impl IpcConnector {
                 clone.nonce = activity_cmd.nonce.clone();
 
                 match clone.event_sender.send(activity_cmd) {
-                  Ok(_) => _,
-                  Err(err) => logger::log("Error sending activity command"),
+                  Ok(_) => (),
+                  Err(err) => logger::log(format!("Error sending activity command: {}", err)),
                 }
               }
               PacketType::Close => {
@@ -200,8 +200,8 @@ impl IpcConnector {
                 };
 
                 match clone.event_sender.send(activity_cmd) {
-                  Ok(_) => _,
-                  Err(err) => logger::log("Error sending activity command"),
+                  Ok(_) => (),
+                  Err(err) => logger::log(format!("Error sending activity command: {}", err)),
                 }
 
                 // reset values
@@ -228,8 +228,8 @@ impl IpcConnector {
                 let resp = encode(PacketType::Pong, message);
 
                 match stream.write_all(&resp) {
-                  Ok(_) => _,
-                  Err(err) => logger::log("Error sending pong"),
+                  Ok(_) => (),
+                  Err(err) => logger::log(format!("Error sending pong: {}", err)),
                 };
               }
               PacketType::Pong => {
