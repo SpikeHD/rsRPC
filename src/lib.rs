@@ -10,12 +10,15 @@ pub mod cmd;
 pub mod detection;
 mod logger;
 mod server;
+
+#[derive(Clone)]
 pub struct RPCServer {
   detectable: Arc<Mutex<Vec<DetectableActivity>>>,
   process_server: Arc<Mutex<ProcessServer>>,
   client_connector: Arc<Mutex<ClientConnector>>,
   ipc_connector: Arc<Mutex<IpcConnector>>,
 }
+
 
 impl RPCServer {
   pub fn from_json_str(detectable: impl AsRef<str>) -> Result<Self, Box<dyn std::error::Error>> {
@@ -74,7 +77,7 @@ impl RPCServer {
       .append_detectables(detectable);
   }
 
-  pub fn start(mut self) {
+  pub fn start(&mut self) {
     // Ensure the IPC socket is closed
     self.ipc_connector.lock().unwrap().close();
 
