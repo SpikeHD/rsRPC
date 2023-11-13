@@ -17,8 +17,9 @@ pub fn main() {
   let args = Args::parse();
 
   // Create new client and stuff
-  let client =
-    Arc::new(Mutex::new(rsrpc::RPCServer::from_file(args.detectable_file).expect("Failed to create RPCServer")));
+  let client = Arc::new(Mutex::new(
+    rsrpc::RPCServer::from_file(args.detectable_file).expect("Failed to create RPCServer"),
+  ));
 
   // We can use this cloned Arc of the client to append new detectables
   let append_client = client.clone();
@@ -65,7 +66,10 @@ pub fn main() {
     };
 
     // This function takes a vec, as you might want to add more than one game (say, if you stored configurable lists of games in a seperate file)
-    append_client.lock().unwrap().append_detectables(vec![new_game]);
+    append_client
+      .lock()
+      .unwrap()
+      .append_detectables(vec![new_game]);
   });
 
   // When running as a binary, enable logs

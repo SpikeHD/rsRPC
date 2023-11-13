@@ -19,7 +19,6 @@ pub struct RPCServer {
   ipc_connector: Arc<Mutex<IpcConnector>>,
 }
 
-
 impl RPCServer {
   pub fn from_json_str(detectable: impl AsRef<str>) -> Result<Self, Box<dyn std::error::Error>> {
     // Parse as JSON, panic if invalid
