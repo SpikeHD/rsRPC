@@ -56,7 +56,8 @@ impl ProcessServer {
   }
 
   pub fn append_detectables(&mut self, detectable: Vec<DetectableActivity>) {
-    self.detectable_list.extend(detectable);
+    // Append to detectable chunks, since that's what is actually scanned
+    self.detectable_chunks.lock().unwrap()[0].extend(detectable);
   }
 
   pub fn start(&self) {
