@@ -14,7 +14,7 @@
 * Basic process detection
 * Socket-based RPC detection
 * Add new processes on the fly
-* Customize process scanning speed
+* Manually trigger scans
 
 # Building
 
@@ -52,11 +52,6 @@ use rsrpc::RPCServer;
 
 fn main() {
   let mut server = RPCServer::from_file("./detectable.json");
-
-  // This is optional, but highly reccommended. It will change the buffer time in between each process in the process scan, which is triggered once every 5 seconds.
-  // Around 75ms tends to be pretty performant, while small numbers tend to make the CPU do more work.
-  server.process_scan_ms = 75;
-
   server.start();
 }
 ```

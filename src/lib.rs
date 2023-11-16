@@ -76,6 +76,13 @@ impl RPCServer {
       .append_detectables(detectable);
   }
 
+  /**
+   * Manually trigger a scan for processes. This should be run AFTER start().
+   */
+  pub fn scan_for_processes(&mut self) {
+    self.process_server.lock().unwrap().scan_for_processes();
+  }
+
   pub fn start(&mut self) {
     // Ensure the IPC socket is closed
     self.ipc_connector.lock().unwrap().close();
