@@ -28,6 +28,7 @@ pub struct ProcessDetectedEvent {
 pub struct ProcessServer {
   detected_list: Arc<Mutex<Vec<DetectableActivity>>>,
   detectable_chunks: Arc<Mutex<Vec<Vec<DetectableActivity>>>>,
+  custom_detectables: Arc<Mutex<Vec<DetectableActivity>>>,
   thread_count: u16,
 
   pub detectable_list: Vec<DetectableActivity>,
@@ -47,6 +48,7 @@ impl ProcessServer {
       thread_count,
       detected_list: Arc::new(Mutex::new(vec![])),
       detectable_chunks: Arc::new(Mutex::new(vec![])),
+      custom_detectables: Arc::new(Mutex::new(vec![])),
       detectable_list: detectable,
       event_sender,
 
@@ -57,7 +59,7 @@ impl ProcessServer {
 
   pub fn append_detectables(&mut self, detectable: Vec<DetectableActivity>) {
     // Append to detectable chunks, since that's what is actually scanned
-    self.detectable_chunks.lock().unwrap()[0].extend(detectable);
+    self.custom_detectables.lock().unwrap().append(&mut detectable.clone());
   }
 
   pub fn start(&self) {
@@ -153,25 +155,25 @@ impl ProcessServer {
                 guild_id: None,
                 hook: false,
                 icon: None,
-                id: "null".to_string(),
+                id: "1337".to_string(),
                 name: "".to_string(),
-                publishers: vec![],
-                rpc_origins: vec![],
+                publishers: None,
+                rpc_origins: None,
                 splash: None,
                 summary: "".to_string(),
-                third_party_skus: vec![],
+                third_party_skus: None,
                 type_field: None,
-                verify_key: "".to_string(),
+                verify_key: None,
                 primary_sku_id: None,
                 slug: None,
-                aliases: vec![],
+                aliases: None,
                 overlay: None,
                 overlay_compatibility_hook: None,
                 privacy_policy_url: None,
                 terms_of_service_url: None,
                 eula_id: None,
                 deeplink_uri: None,
-                tags: vec![],
+                tags: None,
                 pid: None,
                 timestamp: None,
               },
@@ -209,10 +211,15 @@ impl ProcessServer {
 
     logger::log("Process scan triggered");
 
-    let detected_list: Vec<Vec<DetectableActivity>> = (0..8)
+    let detected_list: Vec<Vec<DetectableActivity>> = (0..self.thread_count + 1)
       .into_par_iter()  // Parallel iterator from Rayon
       .map(|i| {
-        let detectable_chunk = &chunks[i as usize];
+        // if this is the last thread, we are supposed to scan the custom detectables
+        let mut detectable_chunk: &Vec<DetectableActivity> = &*self.custom_detectables.lock().unwrap();
+        
+        if i != self.thread_count {
+          detectable_chunk = &chunks[i as usize];
+        }
 
         detectable_chunk.iter().filter_map(|obj| {
           if let Some(executables) = &obj.executables {
