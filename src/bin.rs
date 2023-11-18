@@ -4,7 +4,7 @@ use std::path::PathBuf;
 #[cfg(feature = "binary")]
 pub fn main() {
   use clap::{command, Parser};
-  use rsrpc::detection::{DetectableActivity, Executable};
+  use rsrpc::detection::DetectableActivity;
   use std::sync::{Arc, Mutex};
 
   #[derive(Parser, Debug)]

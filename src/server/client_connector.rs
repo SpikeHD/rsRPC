@@ -241,7 +241,7 @@ impl ClientConnector {
           "#,
           proc_activity.id,
           proc_activity.name,
-          proc_activity.timestamp.as_ref().unwrap_or(&"".to_string()),
+          proc_activity.timestamp.as_ref().unwrap_or(&"0".to_string()),
           proc_activity.pid.unwrap_or_default(),
           proc_activity.id
         );
