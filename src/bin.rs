@@ -51,6 +51,12 @@ pub fn main() {
       .lock()
       .unwrap()
       .append_detectables(vec![new_game]);
+
+    // Remove a custom game via its name
+    append_client
+      .lock()
+      .unwrap()
+      .remove_detectable_by_name("Awesome Game!!".to_string());
   });
 
   // When running as a binary, enable logs

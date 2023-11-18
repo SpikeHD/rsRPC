@@ -77,6 +77,17 @@ impl RPCServer {
   }
 
   /**
+   * Remove a detectable process by name.
+   */
+  pub fn remove_detectable_by_name(&mut self, name: String) {
+    self
+      .process_server
+      .lock()
+      .unwrap()
+      .remove_detectable_by_name(name);
+  }
+
+  /**
    * Manually trigger a scan for processes. This should be run AFTER start().
    */
   pub fn scan_for_processes(&mut self) {

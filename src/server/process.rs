@@ -62,6 +62,10 @@ impl ProcessServer {
     self.custom_detectables.lock().unwrap().append(&mut detectable.clone());
   }
 
+  pub fn remove_detectable_by_name(&mut self, name: String) {
+    self.custom_detectables.lock().unwrap().retain(|x| x.name != name);
+  }
+
   pub fn start(&self) {
     let mut clone = self.clone();
     // Evenly split the detectable list into chunks
