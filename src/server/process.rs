@@ -38,6 +38,8 @@ pub struct ProcessServer {
   pub last_socket_id: Option<String>,
 }
 
+unsafe impl Sync for ProcessServer {}
+
 impl ProcessServer {
   pub fn new(
     detectable: Vec<DetectableActivity>,
