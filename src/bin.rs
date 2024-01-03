@@ -69,7 +69,9 @@ pub fn main() {
   client.lock().unwrap().start();
 
   // let 'er run forever
-  loop {}
+  loop {
+    std::thread::sleep(std::time::Duration::from_millis(10));
+  }
 }
 
 #[cfg(not(feature = "binary"))]
