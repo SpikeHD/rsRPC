@@ -26,7 +26,8 @@ pub fn main() {
 
   // In a seperate thread, append a new detectable game
   std::thread::spawn(move || {
-    let new_game: DetectableActivity = serde_json::from_str(r#"
+    let new_game: DetectableActivity = serde_json::from_str(
+      r#"
     {
       "bot_public": true,
       "bot_require_code_grant": false,
@@ -44,7 +45,9 @@ pub fn main() {
       "name": "Awesome Game!!",
       "summary": "",
       "type": 1
-    }"#).unwrap();
+    }"#,
+    )
+    .unwrap();
 
     // This function takes a vec, as you might want to add more than one game (say, if you stored configurable lists of games in a seperate file)
     append_client

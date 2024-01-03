@@ -59,13 +59,21 @@ impl ProcessServer {
     }
   }
 
-  pub fn append_detectables(&mut self, detectable: Vec<DetectableActivity>) {
+  pub fn append_detectables(&mut self, mut detectable: Vec<DetectableActivity>) {
     // Append to detectable chunks, since that's what is actually scanned
-    self.custom_detectables.lock().unwrap().append(&mut detectable.clone());
+    self
+      .custom_detectables
+      .lock()
+      .unwrap()
+      .append(&mut detectable);
   }
 
   pub fn remove_detectable_by_name(&mut self, name: String) {
-    self.custom_detectables.lock().unwrap().retain(|x| x.name != name);
+    self
+      .custom_detectables
+      .lock()
+      .unwrap()
+      .retain(|x| x.name != name);
   }
 
   pub fn start(&self) {
@@ -221,8 +229,8 @@ impl ProcessServer {
       .into_par_iter()  // Parallel iterator from Rayon
       .map(|i| {
         // if this is the last thread, we are supposed to scan the custom detectables
-        let mut detectable_chunk: &Vec<DetectableActivity> = &*self.custom_detectables.lock().unwrap();
-        
+        let mut detectable_chunk: &Vec<DetectableActivity> = &self.custom_detectables.lock().unwrap();
+
         if i != self.thread_count {
           detectable_chunk = &chunks[i as usize];
         }
