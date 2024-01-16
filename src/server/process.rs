@@ -33,9 +33,6 @@ pub struct ProcessServer {
 
   pub detectable_list: Vec<DetectableActivity>,
   pub event_sender: mpsc::Sender<ProcessDetectedEvent>,
-
-  pub last_pid: Option<u64>,
-  pub last_socket_id: Option<String>,
 }
 
 unsafe impl Sync for ProcessServer {}
@@ -53,9 +50,6 @@ impl ProcessServer {
       custom_detectables: Arc::new(Mutex::new(vec![])),
       detectable_list: detectable,
       event_sender,
-
-      last_pid: None,
-      last_socket_id: None,
     }
   }
 
@@ -77,7 +71,7 @@ impl ProcessServer {
   }
 
   pub fn start(&self) {
-    let mut clone = self.clone();
+    let clone = self.clone();
     // Evenly split the detectable list into chunks
     let mut chunks: Vec<Vec<DetectableActivity>> = vec![];
 
@@ -105,52 +99,37 @@ impl ProcessServer {
         let detected = clone.scan_for_processes();
         let mut new_game_detected = false;
 
-        // If the detected list has changed, send a message to the main thread
-        for activity in &detected {
-          // If the activity is already in the detected list (by ID), skip
-          if clone
-            .detected_list
-            .lock()
-            .unwrap()
-            .iter()
-            .any(|x| x.id == activity.id)
-          {
-            // Send back the existing activity
-            if let Some(found) = clone
-              .detected_list
-              .lock()
-              .unwrap()
-              .iter()
-              .find(|x| x.id == activity.id)
-            {
-              logger::log(format!("Found existing activity: {}", found.name));
-              clone
-                .event_sender
-                .send(ProcessDetectedEvent {
-                  activity: found.clone(),
-                })
-                .unwrap();
+        println!("Detected len: {}", detected.len());
+        println!("Existing list len: {:?}", clone.detected_list.lock().unwrap().len());
+
+        // If the detected list has changed, send only the first element
+        if detected.len() > 0 {
+          let detected_list = clone.detected_list.lock().unwrap();
+
+          // If the detected list is empty, send the first element
+          if detected_list.is_empty() {
+            new_game_detected = true;
+            clone
+              .event_sender
+              .send(ProcessDetectedEvent {
+                activity: detected[0].clone(),
+              })
+              .unwrap();
+          } else {
+            // If the detected list is not empty, check if the first element is different
+            if detected[0].id != detected_list[0].id {
+              new_game_detected = true;
             }
 
-            continue;
+            println!("Sending event");
+
+            clone
+              .event_sender
+              .send(ProcessDetectedEvent {
+                activity: detected[0].clone(),
+              })
+              .unwrap();
           }
-
-          logger::log("Found new activity...");
-
-          // Find the activity in the detectable list
-          let found = activity;
-
-          new_game_detected = true;
-
-          clone.last_pid = found.pid;
-          clone.last_socket_id = Some(found.id.clone());
-
-          clone
-            .event_sender
-            .send(ProcessDetectedEvent {
-              activity: found.clone(),
-            })
-            .unwrap();
         }
 
         // If there are no detected processes, send an empty message

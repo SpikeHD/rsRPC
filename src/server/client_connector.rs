@@ -30,7 +30,7 @@ pub struct ClientConnector {
   data_on_connect: String,
 
   pub last_pid: Option<u64>,
-  pub last_socket_id: Option<String>,
+  pub active_socket: Option<String>,
 
   pub ipc_event_rec: Arc<Mutex<std::sync::mpsc::Receiver<ActivityCmd>>>,
   pub proc_event_rec: Arc<Mutex<std::sync::mpsc::Receiver<ProcessDetectedEvent>>>,
@@ -50,7 +50,7 @@ impl ClientConnector {
       port,
 
       last_pid: None,
-      last_socket_id: None,
+      active_socket: None,
 
       ipc_event_rec: Arc::new(Mutex::new(ipc_event_rec)),
       proc_event_rec: Arc::new(Mutex::new(proc_event_rec)),
@@ -194,7 +194,7 @@ impl ClientConnector {
         let proc_event = proc_clone.proc_event_rec.lock().unwrap().recv().unwrap();
         let proc_activity = proc_event.activity;
 
-        // if there are no client, skip
+        // if there are no clients, skip
         if proc_clone.clients.lock().unwrap().len() == 0 {
           logger::log("No clients connected, skipping");
           continue;
@@ -202,22 +202,43 @@ impl ClientConnector {
 
         if proc_activity.id == "null" {
           // If our last socket id is empty, skip
-          if proc_clone.last_socket_id.is_none() {
+          if proc_clone.active_socket.is_none() {
             continue;
           }
 
-          // Send empty payload
+          // Send an empty payload
+          logger::log("Sending empty payload");
+
           let payload = empty_activity(
             proc_clone.last_pid.unwrap_or_default(),
-            proc_clone.last_socket_id.clone().unwrap_or_default(),
+            proc_clone.active_socket.as_ref().unwrap().clone(),
           );
-
-          logger::log("Sending empty payload");
 
           proc_clone.send_data(payload);
 
-          proc_clone.last_socket_id = None;
+          proc_clone.active_socket = None;
 
+          continue;
+        }
+
+        // If the active socket is different from the current socket, send an empty payload for the old socket
+        if proc_clone.active_socket != Some(proc_activity.id.clone()) {
+          if proc_clone.active_socket.is_some() {
+            // Send an empty payload
+            logger::log("Sending empty payload");
+
+            let payload = empty_activity(
+              proc_clone.last_pid.unwrap_or_default(),
+              proc_clone.active_socket.as_ref().unwrap().clone(),
+            );
+
+            proc_clone.send_data(payload);
+          }
+        } else  {
+          logger::log(format!(
+            "Already sent payload for activity: {}",
+            proc_activity.name
+          ));
           continue;
         }
 
@@ -247,7 +268,7 @@ impl ClientConnector {
         );
 
         proc_clone.last_pid = proc_activity.pid;
-        proc_clone.last_socket_id = Some(proc_activity.id.clone());
+        proc_clone.active_socket = Some(proc_activity.id.clone());
 
         logger::log(format!(
           "Sending payload for activity: {}",
