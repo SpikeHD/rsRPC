@@ -169,7 +169,7 @@ impl ProcessServer {
                 guild_id: None,
                 hook: false,
                 icon: None,
-                id: "1337".to_string(),
+                id: "null".to_string(),
                 name: "".to_string(),
                 publishers: None,
                 rpc_origins: None,
