@@ -234,7 +234,7 @@ impl ClientConnector {
 
             proc_clone.send_data(payload);
           }
-        } else  {
+        } else {
           logger::log(format!(
             "Already sent payload for activity: {}",
             proc_activity.name
