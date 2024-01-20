@@ -153,7 +153,6 @@ impl ProcessServer {
                 publishers: None,
                 rpc_origins: None,
                 splash: None,
-                summary: "".to_string(),
                 third_party_skus: None,
                 type_field: None,
                 verify_key: None,

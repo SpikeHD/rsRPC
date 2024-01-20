@@ -38,7 +38,6 @@ pub struct DetectableActivity {
   pub rpc_origins: Option<Vec<String>>,
   #[serde(skip_serializing_if = "Option::is_none")]
   pub splash: Option<String>,
-  pub summary: String,
   #[serde(rename = "third_party_skus")]
   #[serde(default)]
   #[serde(skip_serializing_if = "Option::is_none")]

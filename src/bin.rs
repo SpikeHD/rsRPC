@@ -43,7 +43,6 @@ pub fn main() {
       "hook": true,
       "id": "1337",
       "name": "Awesome Game!!",
-      "summary": "",
       "type": 1
     }"#,
     )
