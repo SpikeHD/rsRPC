@@ -99,12 +99,6 @@ impl ProcessServer {
         let detected = clone.scan_for_processes();
         let mut new_game_detected = false;
 
-        println!("Detected len: {}", detected.len());
-        println!(
-          "Existing list len: {:?}",
-          clone.detected_list.lock().unwrap().len()
-        );
-
         // If the detected list has changed, send only the first element
         if !detected.is_empty() {
           let detected_list = clone.detected_list.lock().unwrap();
