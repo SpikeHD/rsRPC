@@ -32,13 +32,13 @@ pub struct Timestamps {
 #[derive(Serialize, Deserialize)]
 pub struct Assets {
   #[serde(rename = "large_image")]
-  pub large_image: String,
+  pub large_image: Option<String>,
   #[serde(rename = "large_text")]
-  pub large_text: String,
+  pub large_text: Option<String>,
   #[serde(rename = "small_image")]
-  pub small_image: String,
+  pub small_image: Option<String>,
   #[serde(rename = "small_text")]
-  pub small_text: String,
+  pub small_text: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]

@@ -114,9 +114,34 @@ impl IpcConnector {
       // Forever recieve messages from the socket
       loop {
         // Little baby delay to keep things smooth
-        std::thread::sleep(std::time::Duration::from_millis(5));
+        std::thread::sleep(std::time::Duration::from_millis(15));
 
-        let mut buffer: [u8; 1024] = [0; 1024];
+        // buffer is unknown size 
+        let mut init_buffer: Vec<u8> = vec![0; 8];
+        let mut bytes_read: u32 = 0;
+
+        unsafe {
+          winapi::um::fileapi::ReadFile(
+            socket.0,
+            init_buffer.as_mut_ptr() as *mut c_void,
+            init_buffer.len() as u32,
+            &mut bytes_read,
+            ptr::null_mut(),
+          );
+        }
+
+        // If the buffer is empty or full of nothing, just stop there
+        if bytes_read == 0 || init_buffer.iter().all(|&x| x == 0) {
+          continue;
+        }
+
+        let r_type = PacketType::from_u32(u32::from_le_bytes([
+          init_buffer[0], init_buffer[1], init_buffer[2], init_buffer[3],
+        ]));
+        let data_size = u32::from_le_bytes([init_buffer[4], init_buffer[5], init_buffer[6], init_buffer[7]]);
+
+        // Read the rest into a new buffer and convert to string
+        let mut buffer: Vec<u8> = vec![0; data_size as usize];
         let mut bytes_read: u32 = 0;
 
         unsafe {
@@ -129,18 +154,7 @@ impl IpcConnector {
           );
         }
 
-        // If the buffer is empty or full of nothing, just stop there
-        if bytes_read == 0 || buffer.iter().all(|&x| x == 0) {
-          continue;
-        }
-
-        let r_type = PacketType::from_u32(u32::from_le_bytes([
-          buffer[0], buffer[1], buffer[2], buffer[3],
-        ]));
-        let data_size = u32::from_le_bytes([buffer[4], buffer[5], buffer[6], buffer[7]]);
-
-        // Convert the buffer to a string
-        let message = String::from_utf8_lossy(&buffer[8..(8 + data_size as usize)]).to_string();
+        let message = String::from_utf8(buffer).unwrap();
 
         // Log the message
         logger::log(&format!("Recieved message: {}", message));
@@ -179,9 +193,12 @@ impl IpcConnector {
               continue;
             }
 
-            let Ok(mut activity_cmd) = serde_json::from_str::<ActivityCmd>(&message) else {
-              logger::log("Error parsing activity command");
-              continue;
+            let mut activity_cmd = match serde_json::from_str::<ActivityCmd>(&message) {
+              Ok(a) => a,
+              Err(err) => {
+                logger::log(format!("Error parsing activity command: {}", err));
+                continue;
+              }
             };
 
             activity_cmd.application_id = Some(clone.client_id.clone());

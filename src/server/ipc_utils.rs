@@ -14,7 +14,7 @@ impl PacketType {
       2 => PacketType::Close,
       3 => PacketType::Ping,
       4 => PacketType::Pong,
-      _ => panic!("Invalid packet type: {}", value),
+      _ => PacketType::Frame,
     }
   }
 }
