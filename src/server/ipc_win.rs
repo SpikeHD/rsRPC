@@ -116,7 +116,7 @@ impl IpcConnector {
         // Little baby delay to keep things smooth
         std::thread::sleep(std::time::Duration::from_millis(15));
 
-        // buffer is unknown size 
+        // buffer is unknown size
         let mut init_buffer: Vec<u8> = vec![0; 8];
         let mut bytes_read: u32 = 0;
 
@@ -136,9 +136,17 @@ impl IpcConnector {
         }
 
         let r_type = PacketType::from_u32(u32::from_le_bytes([
-          init_buffer[0], init_buffer[1], init_buffer[2], init_buffer[3],
+          init_buffer[0],
+          init_buffer[1],
+          init_buffer[2],
+          init_buffer[3],
         ]));
-        let data_size = u32::from_le_bytes([init_buffer[4], init_buffer[5], init_buffer[6], init_buffer[7]]);
+        let data_size = u32::from_le_bytes([
+          init_buffer[4],
+          init_buffer[5],
+          init_buffer[6],
+          init_buffer[7],
+        ]);
 
         // Read the rest into a new buffer and convert to string
         let mut buffer: Vec<u8> = vec![0; data_size as usize];
@@ -204,7 +212,7 @@ impl IpcConnector {
             activity_cmd.application_id = Some(clone.client_id.clone());
 
             clone.pid = activity_cmd.args.pid;
-            clone.nonce = activity_cmd.nonce.clone();
+            clone.nonce.clone_from(&activity_cmd.nonce);
 
             match clone.event_sender.send(activity_cmd) {
               Ok(_) => (),

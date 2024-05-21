@@ -1,9 +1,9 @@
+use rayon::prelude::*;
 use std::sync::mpsc;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
 use std::vec;
-use rayon::prelude::*;
 
 // Sysinfo traits
 use sysinfo::ProcessExt;
@@ -16,7 +16,6 @@ use super::super::DetectableActivity;
 #[derive(Clone)]
 pub struct Exec {
   pid: u64,
-  name: String,
   path: String,
 }
 
@@ -188,7 +187,6 @@ impl ProcessServer {
     for proc in sys.processes() {
       processes.push(Exec {
         pid: proc.0.to_string().parse::<u64>().unwrap(),
-        name: proc.1.name().to_string(),
         path: proc.1.exe().display().to_string(),
       });
     }
@@ -217,13 +215,11 @@ impl ProcessServer {
           if let Some(executables) = &obj.executables {
             for executable in executables {
               for process in &processes {
-                let process_name = process.name.to_lowercase();
                 let process_path = process.path.to_lowercase().replace('\\', "/");
                 // Process path (but consistent slashes, so we can compare properly)
                 let exec_path = executable.name.replace('\\', "/");
-                let found = (!process_path.is_empty() && process_path.contains(&exec_path)) || (
-                  executable.name.to_lowercase() == process_name
-                    || executable.name.to_lowercase() == name_no_ext(&process_name)
+                let found = !process_path.is_empty() && (
+                  process_path.contains(&exec_path) || name_no_ext(&process_path).contains(&exec_path)
                 );
 
                 if !found {
