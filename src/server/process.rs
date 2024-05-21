@@ -3,9 +3,9 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
 use std::vec;
-
 use rayon::prelude::*;
 
+// Sysinfo traits
 use sysinfo::ProcessExt;
 use sysinfo::SystemExt;
 
@@ -17,6 +17,7 @@ use super::super::DetectableActivity;
 pub struct Exec {
   pid: u64,
   name: String,
+  path: String,
 }
 
 #[derive(Clone)]
@@ -188,6 +189,7 @@ impl ProcessServer {
       processes.push(Exec {
         pid: proc.0.to_string().parse::<u64>().unwrap(),
         name: proc.1.name().to_string(),
+        path: proc.1.exe().display().to_string(),
       });
     }
 
@@ -207,6 +209,7 @@ impl ProcessServer {
         let mut detectable_chunk: &Vec<DetectableActivity> = &self.custom_detectables.lock().unwrap();
 
         if i != self.thread_count {
+          println!("Scanning chunk {}", i);
           detectable_chunk = &chunks[i as usize];
         }
 
@@ -214,21 +217,29 @@ impl ProcessServer {
           if let Some(executables) = &obj.executables {
             for executable in executables {
               for process in &processes {
-                let process_name_lowercase = process.name.to_lowercase();
-                if executable.name.to_lowercase() == process_name_lowercase
-                  || executable.name.to_lowercase() == name_no_ext(process_name_lowercase)
-                {
-                  let mut new_activity = obj.clone();
-                  new_activity.pid = Some(process.pid);
-                  new_activity.timestamp = Some(format!(
-                    "{:?}",
-                    std::time::SystemTime::now()
-                      .duration_since(std::time::UNIX_EPOCH)
-                      .unwrap()
-                      .as_millis()
-                  ));
-                  return Some(new_activity);
+                let process_name = process.name.to_lowercase();
+                let process_path = process.path.to_lowercase().replace('\\', "/");
+                // Process path (but consistent slashes, so we can compare properly)
+                let exec_path = executable.name.replace('\\', "/");
+                let found = (!process_path.is_empty() && process_path.contains(&exec_path)) || (
+                  executable.name.to_lowercase() == process_name
+                    || executable.name.to_lowercase() == name_no_ext(&process_name)
+                );
+
+                if !found {
+                  continue;
                 }
+
+                let mut new_activity = obj.clone();
+                new_activity.pid = Some(process.pid);
+                new_activity.timestamp = Some(format!(
+                  "{:?}",
+                  std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_millis()
+                ));
+                return Some(new_activity);
               }
             }
           }
@@ -246,7 +257,7 @@ impl ProcessServer {
   }
 }
 
-pub fn name_no_ext(name: String) -> String {
+pub fn name_no_ext(name: &String) -> String {
   if name.contains('.') {
     // Split the name by the dot
     let split: Vec<&str> = name.split('.').collect();
@@ -254,5 +265,5 @@ pub fn name_no_ext(name: String) -> String {
     return split[0].to_string();
   }
 
-  name
+  name.to_owned()
 }
