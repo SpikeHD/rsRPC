@@ -42,7 +42,7 @@
 
 ```toml
 [dependencies]
-rsrpc = { git = "https://www.github.com/SpikeHD/rsRPC", branch = "VERSION_NUMBER_HERE" }
+rsrpc = { git = "https://www.github.com/SpikeHD/rsRPC", tag = "VERSION_NUMBER_HERE" }
 ```
 
 2. Use the library in your code:
