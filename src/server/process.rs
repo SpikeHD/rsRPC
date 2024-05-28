@@ -207,7 +207,6 @@ impl ProcessServer {
         let mut detectable_chunk: &Vec<DetectableActivity> = &self.custom_detectables.lock().unwrap();
 
         if i != self.thread_count {
-          println!("Scanning chunk {}", i);
           detectable_chunk = &chunks[i as usize];
         }
 
