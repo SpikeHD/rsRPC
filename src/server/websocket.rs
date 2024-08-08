@@ -8,7 +8,7 @@ use simple_websockets::{ConnectionDetails, Event, EventHub, Message, Responder};
 
 use crate::{log, server::utils::CONNECTION_REPONSE, url_params::get_url_params};
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WebsocketEvent {
   pub cmd: String,
   pub args: Option<HashMap<String, String>>,
@@ -52,6 +52,7 @@ impl WebsocketConnector {
   pub fn start(&self) {
     let server = self.server.clone();
     let clients = self.clients.clone();
+    let event_sender = self.event_sender.clone();
 
     std::thread::spawn(move || {
       let server = server.lock().unwrap();
@@ -85,8 +86,36 @@ impl WebsocketConnector {
               "[Websocket] Received message from client {}: {:?}",
               client_id, message
             );
+
             let responder = clients.get(&client_id).unwrap();
-            responder.send(message);
+            let message = match message {
+              Message::Text(text) => text,
+              _ => "".to_string(),
+            };
+            
+            // If not WebsocketEvent, ignore
+            let event: WebsocketEvent = match serde_json::from_str(&message) {
+              Ok(event) => event,
+              Err(_) => {
+                log!("[Websocket] Invalid message from client {}", client_id);
+                continue;
+              }
+            };
+
+            // Let's just assume this went well I don't care
+            let response = WebsocketEvent {
+              cmd: event.cmd.clone(),
+              args: None,
+              data: event.args.clone(),
+              evt: None,
+              nonce: event.nonce.clone(),
+            };
+
+            // Send the event away!
+            event_sender.send(event).unwrap();
+
+            // Respond
+            responder.send(Message::Text(serde_json::to_string(&response).unwrap()));
           }
         }
 
