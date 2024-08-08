@@ -182,7 +182,7 @@ impl IpcConnector {
                 activity_cmd.application_id = Some(clone.client_id.clone());
 
                 clone.pid = activity_cmd.args.pid;
-                clone.nonce = activity_cmd.nonce.clone();
+                clone.nonce.clone_from(&activity_cmd.nonce);
 
                 match clone.event_sender.send(activity_cmd) {
                   Ok(_) => (),

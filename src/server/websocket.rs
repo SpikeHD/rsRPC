@@ -18,7 +18,6 @@ pub struct WebsocketEvent {
 }
 
 pub struct WebsocketConnector {
-  pub port: u16,
   server: Arc<Mutex<EventHub>>,
   pub clients: Arc<Mutex<HashMap<u64, Responder>>>,
 
@@ -35,7 +34,6 @@ impl WebsocketConnector {
           return WebsocketConnector {
             server: Arc::new(Mutex::new(server)),
             clients: Arc::new(Mutex::new(HashMap::new())),
-            port,
             event_sender,
           };
         }
@@ -111,7 +109,11 @@ impl WebsocketConnector {
 
             if let Some(origin) = origin {
               let value = origin.to_str().unwrap_or_default();
-              let valid = ["https://discord.com", "https://canary.discord.com", "https://ptb.discord.com"];
+              let valid = [
+                "https://discord.com",
+                "https://canary.discord.com",
+                "https://ptb.discord.com",
+              ];
 
               if !valid.contains(&value) {
                 log!("[Websocket] Invalid origin from client {}", client_id);
