@@ -102,20 +102,13 @@ impl WebsocketConnector {
               }
             };
 
-            // Let's just assume this went well I don't care
-            let response = WebsocketEvent {
-              cmd: event.cmd.clone(),
-              args: None,
-              data: event.args.clone(),
-              evt: None,
-              nonce: event.nonce.clone(),
-            };
-
-            // Send the event away!
-            event_sender.send(event).unwrap();
-
-            // Respond
-            responder.send(Message::Text(serde_json::to_string(&response).unwrap()));
+            match event.cmd.as_str() {
+              "INVITE_BROWSER" => handle_invite(&event, &event_sender, responder),
+              "DEEP_LINK" => {
+                log!("[Websocket] Deep link unimplemented. PRs are open!");
+              },
+              _ => (),
+            }
           }
         }
 
@@ -123,4 +116,21 @@ impl WebsocketConnector {
       }
     });
   }
+}
+
+fn handle_invite(event: &WebsocketEvent, event_sender: &mpsc::Sender<WebsocketEvent>, responder: &Responder) {
+  // Let's just assume this went well I don't care
+  let response = WebsocketEvent {
+    cmd: event.cmd.clone(),
+    args: None,
+    data: event.args.clone(),
+    evt: None,
+    nonce: event.nonce.clone(),
+  };
+
+  // Send the event away!
+  event_sender.send(event.clone()).unwrap();
+
+  // Respond
+  responder.send(Message::Text(serde_json::to_string(&response).unwrap()));
 }
