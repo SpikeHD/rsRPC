@@ -81,7 +81,7 @@ impl IpcConnector {
     let socket_path = get_socket_path();
     let tries = tries.unwrap_or(0);
 
-    log!("Creating socket: {}-{}", socket_path, tries);
+    log!("[IPC] Creating socket: {}-{}", socket_path, tries);
 
     let socket = UnixListener::bind(format!("{}-{}", socket_path, tries));
 
@@ -90,7 +90,7 @@ impl IpcConnector {
       Err(err) => {
         if tries >= 10 {
           log!(
-            "Could not create IPC socket after 10 tries: {}",
+            "[IPC] Could not create IPC socket after 10 tries: {}",
             err
           );
           panic!("Could not create IPC socket after 10 tries");
@@ -146,13 +146,13 @@ impl IpcConnector {
 
             let r_type = PacketType::from_u32(u32::from_le_bytes(packet_type));
 
-            log!("Recieved message: {}", message);
+            log!("[IPC] Recieved message: {}", message);
 
             match r_type {
               PacketType::Handshake => {
-                log!("Recieved handshake");
+                log!("[IPC] Recieved handshake");
                 let Ok(data) = serde_json::from_str::<Handshake>(&message) else {
-                  log!("Error parsing handshake");
+                  log!("[IPC] Error parsing handshake");
                   continue;
                 };
 
@@ -168,17 +168,17 @@ impl IpcConnector {
 
                 match stream.write_all(&resp) {
                   Ok(_) => (),
-                  Err(err) => log!("Error sending connection response: {}", err),
+                  Err(err) => log!("[IPC] Error sending connection response: {}", err),
                 }
               }
               PacketType::Frame => {
                 if !clone.did_handshake {
-                  log!("Did not handshake yet, ignoring frame");
+                  log!("[IPC] Did not handshake yet, ignoring frame");
                   continue;
                 }
 
                 let Ok(mut activity_cmd) = serde_json::from_str::<ActivityCmd>(&message) else {
-                  log!("Error parsing activity command");
+                  log!("[IPC] Error parsing activity command");
                   continue;
                 };
 
@@ -189,11 +189,11 @@ impl IpcConnector {
 
                 match clone.event_sender.send(activity_cmd) {
                   Ok(_) => (),
-                  Err(err) => log!("Error sending activity command: {}", err),
+                  Err(err) => log!("[IPC] Error sending activity command: {}", err),
                 }
               }
               PacketType::Close => {
-                log!("Recieved close");
+                log!("[IPC] Recieved close");
 
                 // Send message with an empty activity
                 let activity_cmd = ActivityCmd {
@@ -208,7 +208,7 @@ impl IpcConnector {
 
                 match clone.event_sender.send(activity_cmd) {
                   Ok(_) => (),
-                  Err(err) => log!("Error sending activity command: {}", err),
+                  Err(err) => log!("[IPC] Error sending activity command: {}", err),
                 }
 
                 // reset values
@@ -229,23 +229,23 @@ impl IpcConnector {
                 *socket = Self::create_socket(None);
               }
               PacketType::Ping => {
-                log!("Recieved ping");
+                log!("[IPC] Recieved ping");
 
                 // Send a pong
                 let resp = encode(PacketType::Pong, message);
 
                 match stream.write_all(&resp) {
                   Ok(_) => (),
-                  Err(err) => log!("Error sending pong: {}", err),
+                  Err(err) => log!("[IPC] Error sending pong: {}", err),
                 };
               }
               PacketType::Pong => {
-                log!("Recieved pong");
+                log!("[IPC] Recieved pong");
               }
             }
           }
           Err(err) => {
-            log!("Error: {}", err);
+            log!("[IPC] Error: {}", err);
             break;
           }
         }

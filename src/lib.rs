@@ -115,17 +115,17 @@ impl RPCServer {
     )));
 
     log!(
-      "Starting client connector on port {}...",
+      "[RPC Server] Starting client connector on port {}...",
       self.client_connector.lock().unwrap().port
     );
     self.client_connector.lock().unwrap().start();
 
-    log!("Starting IPC connector...");
+    log!("[RPC Server] Starting IPC connector...");
     self.ipc_connector.lock().unwrap().start();
 
-    log!("Starting process server...");
+    log!("[RPC Server] Starting process server...");
     self.process_server.lock().unwrap().start();
 
-    log!("Done! Watching for activity...");
+    log!("[RPC Server] Done! Watching for activity...");
   }
 }

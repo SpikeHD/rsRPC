@@ -23,37 +23,36 @@ impl WebsocketConnector {
   }
 
   pub fn start(&self) {
-    // let server = self.server.clone();
-    // let clients = self.clients.clone();
+    let server = self.server.clone();
+    let clients = self.clients.clone();
 
-    // std::thread::spawn(move || {
-    //   let mut server = server.lock().unwrap();
-    //   let mut clients = clients.lock().unwrap();
+    std::thread::spawn(move || {
+      let server = server.lock().unwrap();
+      let mut clients = clients.lock().unwrap();
 
-    //   loop {
-
-    //     match server.poll_event() {
-    //       Event::Connect(client_id, responder) => {
-    //         log!("Client {} connected", client_id);
+      loop {
+        match server.poll_event() {
+          Event::Connect(client_id, responder) => {
+            log!("[Websocket] Client {} connected", client_id);
             
-    //         clients.insert(client_id, responder);
-    //       }
-    //       Event::Disconnect(client_id) => {
-    //         clients.remove(&client_id);
-    //       }
-    //       Event::Message(client_id, message) => {
-    //         log!(
-    //           "Received message from client {}: {:?}",
-    //           client_id, message
-    //         );
-    //         let responder = clients;
-    //         let responder = responder.get(&client_id).unwrap();
-    //         responder.send(message);
-    //       }
-    //     }
+            clients.insert(client_id, responder);
+          }
+          Event::Disconnect(client_id) => {
+            log!("[Websocket] Client {} disconnected", client_id);
+            clients.remove(&client_id);
+          }
+          Event::Message(client_id, message) => {
+            log!(
+              "[Websocket] Received message from client {}: {:?}",
+              client_id, message
+            );
+            let responder = clients.get(&client_id).unwrap();
+            responder.send(message);
+          }
+        }
 
-    //     std::thread::sleep(std::time::Duration::from_millis(100));
-    //   }
-    // });
+        std::thread::sleep(std::time::Duration::from_millis(100));
+      }
+    });
   }
 }

@@ -97,7 +97,7 @@ impl IpcConnector {
       }
     }
 
-    log!("Created IPC socket: {}", pipe_path);
+    log!("[IPC] Created IPC socket: {}", pipe_path);
 
     pipe_handle
   }
@@ -165,12 +165,12 @@ impl IpcConnector {
         let message = String::from_utf8(buffer).unwrap();
 
         // Log the message
-        log!("Recieved message: {}", message);
+        log!("[IPC] Recieved message: {}", message);
 
         match r_type {
           PacketType::Handshake => {
             let Ok(data) = serde_json::from_str::<Handshake>(&message) else {
-              log!("Error parsing handshake");
+              log!("[IPC] Error parsing handshake");
               continue;
             };
 
@@ -195,16 +195,16 @@ impl IpcConnector {
             clone.client_id = data.client_id;
           }
           PacketType::Frame => {
-            log!("Recieved frame");
+            log!("[IPC] Recieved frame");
             if !clone.did_handshake {
-              log!("Did not handshake yet, ignoring frame");
+              log!("[IPC] Did not handshake yet, ignoring frame");
               continue;
             }
 
             let mut activity_cmd = match serde_json::from_str::<ActivityCmd>(&message) {
               Ok(a) => a,
               Err(err) => {
-                log!("Error parsing activity command: {}", err);
+                log!("[IPC] Error parsing activity command: {}", err);
                 continue;
               }
             };
@@ -216,11 +216,11 @@ impl IpcConnector {
 
             match clone.event_sender.send(activity_cmd) {
               Ok(_) => (),
-              Err(err) => log!("Error sending activity command: {}", err),
+              Err(err) => log!("[IPC] Error sending activity command: {}", err),
             };
           }
           PacketType::Close => {
-            log!("Recieved close");
+            log!("[IPC] Recieved close");
 
             // Send message with an empty activity
             let activity_cmd = ActivityCmd {
@@ -235,7 +235,7 @@ impl IpcConnector {
 
             match clone.event_sender.send(activity_cmd) {
               Ok(_) => (),
-              Err(err) => log!("Error sending activity command: {}", err),
+              Err(err) => log!("[IPC] Error sending activity command: {}", err),
             };
 
             // reset values
@@ -254,7 +254,7 @@ impl IpcConnector {
             *socket = PipeHandle(pipe_handle);
           }
           PacketType::Ping => {
-            log!("Recieved ping");
+            log!("[IPC] Recieved ping");
 
             // Send a pong
             let resp = encode(PacketType::Pong, message);
@@ -270,7 +270,7 @@ impl IpcConnector {
             }
           }
           PacketType::Pong => {
-            log!("Recieved pong");
+            log!("[IPC] Recieved pong");
           }
         }
       }

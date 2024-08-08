@@ -198,7 +198,7 @@ impl ProcessServer {
     let chunks = self.detectable_chunks.lock().unwrap();
     let processes = ProcessServer::process_list();
 
-    log!("Process scan triggered");
+    log!("[Process Scanner] Process scan triggered");
 
     let detected_list: Vec<Vec<DetectableActivity>> = (0..self.thread_count + 1)
       .into_par_iter()  // Parallel iterator from Rayon

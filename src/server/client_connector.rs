@@ -98,7 +98,7 @@ impl ClientConnector {
 
         // if there are no client, skip
         if ipc_clone.clients.lock().unwrap().len() == 0 {
-          log!("No clients connected, skipping");
+          log!("[Client Connector] No clients connected, skipping");
           continue;
         }
 
@@ -106,7 +106,7 @@ impl ClientConnector {
           // Send empty payload
           let payload = empty_activity(ipc_clone.last_pid.unwrap_or_default(), "0".to_string());
 
-          log!("Sending empty payload");
+          log!("[Client Connector] Sending empty payload");
 
           ipc_clone.send_data(payload);
 
@@ -181,9 +181,9 @@ impl ClientConnector {
           ipc_activity.args.pid,
         );
 
-        log!("{:?}", payload);
+        log!("[Client Connector] {:?}", payload);
 
-        log!("Sending payload for IPC activity");
+        log!("[Client Connector] Sending payload for IPC activity");
 
         ipc_clone.send_data(payload);
       }
@@ -196,7 +196,7 @@ impl ClientConnector {
 
         // if there are no clients, skip
         if proc_clone.clients.lock().unwrap().len() == 0 {
-          log!("No clients connected, skipping");
+          log!("[Client Connector] No clients connected, skipping");
           continue;
         }
 
@@ -207,7 +207,7 @@ impl ClientConnector {
           }
 
           // Send an empty payload
-          log!("Sending empty payload");
+          log!("[Client Connector] Sending empty payload");
 
           let payload = empty_activity(
             proc_clone.last_pid.unwrap_or_default(),
@@ -225,7 +225,7 @@ impl ClientConnector {
         if proc_clone.active_socket != Some(proc_activity.id.clone()) {
           if proc_clone.active_socket.is_some() {
             // Send an empty payload
-            log!("Sending empty payload");
+            log!("[Client Connector] Sending empty payload");
 
             let payload = empty_activity(
               proc_clone.last_pid.unwrap_or_default(),
@@ -236,7 +236,7 @@ impl ClientConnector {
           }
         } else {
           log!(
-            "Already sent payload for activity: {}",
+            "[Client Connector] Already sent payload for activity: {}",
             proc_activity.name
           );
           continue;
@@ -271,7 +271,7 @@ impl ClientConnector {
         proc_clone.active_socket = Some(proc_activity.id.clone());
 
         log!(
-          "Sending payload for activity: {}",
+          "[Client Connector] Sending payload for activity: {}",
           proc_activity.name
         );
 
