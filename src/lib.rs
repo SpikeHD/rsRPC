@@ -1,6 +1,9 @@
 use detection::DetectableActivity;
 use serde_json::Value;
-use server::{client_connector::ClientConnector, ipc::IpcConnector, process::ProcessServer, websocket::WebsocketConnector};
+use server::{
+  client_connector::ClientConnector, ipc::IpcConnector, process::ProcessServer,
+  websocket::WebsocketConnector,
+};
 use std::{
   path::PathBuf,
   sync::{mpsc, Arc, Mutex},

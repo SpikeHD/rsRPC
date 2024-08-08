@@ -4,7 +4,7 @@ use std::{
 };
 
 use serde::{Deserialize, Serialize};
-use simple_websockets::{ConnectionDetails, Event, EventHub, Message, Responder};
+use simple_websockets::{Event, EventHub, Message, Responder};
 
 use crate::{log, server::utils::CONNECTION_REPONSE, url_params::get_url_params};
 
@@ -64,17 +64,20 @@ impl WebsocketConnector {
             let connection = responder.connection_details();
             let url_params = get_url_params(connection.uri.clone());
             let version = url_params.get("v").unwrap_or(&"0".to_string()).clone();
-            let encoding = url_params.get("encoding").unwrap_or(&"json".to_string()).clone();
+            let encoding = url_params
+              .get("encoding")
+              .unwrap_or(&"json".to_string())
+              .clone();
 
             log!("[Websocket] Client {} connected", client_id);
-        
+
             if version != "1" || encoding != "json" {
               log!("[Websocket] Invalid connection from client {}", client_id);
               return;
             }
 
             responder.send(Message::Text(CONNECTION_REPONSE.to_string()));
-            
+
             clients.insert(client_id, responder);
           }
           Event::Disconnect(client_id) => {
@@ -84,7 +87,8 @@ impl WebsocketConnector {
           Event::Message(client_id, message) => {
             log!(
               "[Websocket] Received message from client {}: {:?}",
-              client_id, message
+              client_id,
+              message
             );
 
             let responder = clients.get(&client_id).unwrap();
@@ -92,7 +96,7 @@ impl WebsocketConnector {
               Message::Text(text) => text,
               _ => "".to_string(),
             };
-            
+
             // If not WebsocketEvent, ignore
             let event: WebsocketEvent = match serde_json::from_str(&message) {
               Ok(event) => event,
@@ -106,7 +110,7 @@ impl WebsocketConnector {
               "INVITE_BROWSER" => handle_invite(&event, &event_sender, responder),
               "DEEP_LINK" => {
                 log!("[Websocket] Deep link unimplemented. PRs are open!");
-              },
+              }
               _ => (),
             }
           }
@@ -118,7 +122,11 @@ impl WebsocketConnector {
   }
 }
 
-fn handle_invite(event: &WebsocketEvent, event_sender: &mpsc::Sender<WebsocketEvent>, responder: &Responder) {
+fn handle_invite(
+  event: &WebsocketEvent,
+  event_sender: &mpsc::Sender<WebsocketEvent>,
+  responder: &Responder,
+) {
   // Let's just assume this went well I don't care
   let response = WebsocketEvent {
     cmd: event.cmd.clone(),

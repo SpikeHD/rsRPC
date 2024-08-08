@@ -7,7 +7,7 @@ use simple_websockets::{Event, EventHub, Message, Responder};
 
 use crate::{cmd::ActivityCmd, log};
 
-use super::{process::ProcessDetectedEvent, websocket:: WebsocketEvent};
+use super::{process::ProcessDetectedEvent, websocket::WebsocketEvent};
 
 fn empty_activity(pid: u64, socket_id: String) -> String {
   format!(
@@ -46,10 +46,12 @@ impl ClientConnector {
     ws_event_rec: std::sync::mpsc::Receiver<WebsocketEvent>,
   ) -> ClientConnector {
     ClientConnector {
-      server: Arc::new(Mutex::new(simple_websockets::launch(port).unwrap_or_else(|_| {
-        log!("[Client Connector] Failed to launch websocket server, port may already be in use");
-        std::process::exit(1);
-      }))),
+      server: Arc::new(Mutex::new(simple_websockets::launch(port).unwrap_or_else(
+        |_| {
+          log!("[Client Connector] Failed to launch websocket server, port may already be in use");
+          std::process::exit(1);
+        },
+      ))),
       clients: Arc::new(Mutex::new(HashMap::new())),
       data_on_connect,
       port,
@@ -84,7 +86,8 @@ impl ClientConnector {
           Event::Message(client_id, message) => {
             log!(
               "[Client Connector] Received message from client {}: {:?}",
-              client_id, message
+              client_id,
+              message
             );
             let responder = clients_clone.lock().unwrap();
             let responder = responder.get(&client_id).unwrap();

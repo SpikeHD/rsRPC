@@ -89,10 +89,7 @@ impl IpcConnector {
       Ok(socket) => socket,
       Err(err) => {
         if tries >= 10 {
-          log!(
-            "[IPC] Could not create IPC socket after 10 tries: {}",
-            err
-          );
+          log!("[IPC] Could not create IPC socket after 10 tries: {}", err);
           panic!("Could not create IPC socket after 10 tries");
         }
 

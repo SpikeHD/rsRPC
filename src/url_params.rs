@@ -9,7 +9,7 @@ pub fn get_url_params(uri: String) -> HashMap<String, String> {
   }
 
   let query = uri[1];
-  
+
   for param in query.split('&') {
     let param = param.split('=').collect::<Vec<&str>>();
     if param.len() == 2 {

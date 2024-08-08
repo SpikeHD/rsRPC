@@ -1,4 +1,4 @@
-pub static CONNECTION_REPONSE: &'static str = r#"
+pub static CONNECTION_REPONSE: &str = r#"
 {
   "cmd": "DISPATCH",
   "evt": "READY",
