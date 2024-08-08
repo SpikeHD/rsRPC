@@ -5,7 +5,7 @@ use std::{
 
 use simple_websockets::{Event, EventHub, Message, Responder};
 
-use crate::{cmd::ActivityCmd, logger};
+use crate::{cmd::ActivityCmd, log};
 
 use super::process::ProcessDetectedEvent;
 
@@ -65,7 +65,7 @@ impl ClientConnector {
       loop {
         match clone.server.lock().unwrap().poll_event() {
           Event::Connect(client_id, responder) => {
-            logger::log(format!("Client {} connected", client_id));
+            log!("[Client Connector] Client {} connected", client_id);
 
             // Send initial connection data
             responder.send(Message::Text(clone.data_on_connect.clone()));
@@ -76,10 +76,10 @@ impl ClientConnector {
             clients_clone.lock().unwrap().remove(&client_id);
           }
           Event::Message(client_id, message) => {
-            logger::log(format!(
-              "Received message from client {}: {:?}",
+            log!(
+              "[Client Connector] Received message from client {}: {:?}",
               client_id, message
-            ));
+            );
             let responder = clients_clone.lock().unwrap();
             let responder = responder.get(&client_id).unwrap();
             responder.send(message);
@@ -98,7 +98,7 @@ impl ClientConnector {
 
         // if there are no client, skip
         if ipc_clone.clients.lock().unwrap().len() == 0 {
-          logger::log("No clients connected, skipping");
+          log!("No clients connected, skipping");
           continue;
         }
 
@@ -106,7 +106,7 @@ impl ClientConnector {
           // Send empty payload
           let payload = empty_activity(ipc_clone.last_pid.unwrap_or_default(), "0".to_string());
 
-          logger::log("Sending empty payload");
+          log!("Sending empty payload");
 
           ipc_clone.send_data(payload);
 
@@ -181,9 +181,9 @@ impl ClientConnector {
           ipc_activity.args.pid,
         );
 
-        logger::log(&payload);
+        log!("{:?}", payload);
 
-        logger::log("Sending payload for IPC activity");
+        log!("Sending payload for IPC activity");
 
         ipc_clone.send_data(payload);
       }
@@ -196,7 +196,7 @@ impl ClientConnector {
 
         // if there are no clients, skip
         if proc_clone.clients.lock().unwrap().len() == 0 {
-          logger::log("No clients connected, skipping");
+          log!("No clients connected, skipping");
           continue;
         }
 
@@ -207,7 +207,7 @@ impl ClientConnector {
           }
 
           // Send an empty payload
-          logger::log("Sending empty payload");
+          log!("Sending empty payload");
 
           let payload = empty_activity(
             proc_clone.last_pid.unwrap_or_default(),
@@ -225,7 +225,7 @@ impl ClientConnector {
         if proc_clone.active_socket != Some(proc_activity.id.clone()) {
           if proc_clone.active_socket.is_some() {
             // Send an empty payload
-            logger::log("Sending empty payload");
+            log!("Sending empty payload");
 
             let payload = empty_activity(
               proc_clone.last_pid.unwrap_or_default(),
@@ -235,10 +235,10 @@ impl ClientConnector {
             proc_clone.send_data(payload);
           }
         } else {
-          logger::log(format!(
+          log!(
             "Already sent payload for activity: {}",
             proc_activity.name
-          ));
+          );
           continue;
         }
 
@@ -270,10 +270,10 @@ impl ClientConnector {
         proc_clone.last_pid = proc_activity.pid;
         proc_clone.active_socket = Some(proc_activity.id.clone());
 
-        logger::log(format!(
+        log!(
           "Sending payload for activity: {}",
           proc_activity.name
-        ));
+        );
 
         proc_clone.send_data(payload);
       }

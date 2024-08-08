@@ -81,7 +81,7 @@ impl IpcConnector {
     let socket_path = get_socket_path();
     let tries = tries.unwrap_or(0);
 
-    logger::log(format!("Creating socket: {}-{}", socket_path, tries));
+    log!("Creating socket: {}-{}", socket_path, tries);
 
     let socket = UnixListener::bind(format!("{}-{}", socket_path, tries));
 
@@ -89,10 +89,10 @@ impl IpcConnector {
       Ok(socket) => socket,
       Err(err) => {
         if tries >= 10 {
-          logger::log(format!(
+          log!(
             "Could not create IPC socket after 10 tries: {}",
             err
-          ));
+          );
           panic!("Could not create IPC socket after 10 tries");
         }
 
@@ -146,13 +146,13 @@ impl IpcConnector {
 
             let r_type = PacketType::from_u32(u32::from_le_bytes(packet_type));
 
-            logger::log(format!("Recieved message: {}", message));
+            log!("Recieved message: {}", message);
 
             match r_type {
               PacketType::Handshake => {
-                logger::log("Recieved handshake");
+                log!("Recieved handshake");
                 let Ok(data) = serde_json::from_str::<Handshake>(&message) else {
-                  logger::log("Error parsing handshake");
+                  log!("Error parsing handshake");
                   continue;
                 };
 
@@ -168,17 +168,17 @@ impl IpcConnector {
 
                 match stream.write_all(&resp) {
                   Ok(_) => (),
-                  Err(err) => logger::log(format!("Error sending connection response: {}", err)),
+                  Err(err) => log!("Error sending connection response: {}", err),
                 }
               }
               PacketType::Frame => {
                 if !clone.did_handshake {
-                  logger::log("Did not handshake yet, ignoring frame");
+                  log!("Did not handshake yet, ignoring frame");
                   continue;
                 }
 
                 let Ok(mut activity_cmd) = serde_json::from_str::<ActivityCmd>(&message) else {
-                  logger::log("Error parsing activity command");
+                  log!("Error parsing activity command");
                   continue;
                 };
 
@@ -189,11 +189,11 @@ impl IpcConnector {
 
                 match clone.event_sender.send(activity_cmd) {
                   Ok(_) => (),
-                  Err(err) => logger::log(format!("Error sending activity command: {}", err)),
+                  Err(err) => log!("Error sending activity command: {}", err),
                 }
               }
               PacketType::Close => {
-                logger::log("Recieved close");
+                log!("Recieved close");
 
                 // Send message with an empty activity
                 let activity_cmd = ActivityCmd {
@@ -208,7 +208,7 @@ impl IpcConnector {
 
                 match clone.event_sender.send(activity_cmd) {
                   Ok(_) => (),
-                  Err(err) => logger::log(format!("Error sending activity command: {}", err)),
+                  Err(err) => log!("Error sending activity command: {}", err),
                 }
 
                 // reset values
@@ -229,23 +229,23 @@ impl IpcConnector {
                 *socket = Self::create_socket(None);
               }
               PacketType::Ping => {
-                logger::log("Recieved ping");
+                log!("Recieved ping");
 
                 // Send a pong
                 let resp = encode(PacketType::Pong, message);
 
                 match stream.write_all(&resp) {
                   Ok(_) => (),
-                  Err(err) => logger::log(format!("Error sending pong: {}", err)),
+                  Err(err) => log!("Error sending pong: {}", err),
                 };
               }
               PacketType::Pong => {
-                logger::log("Recieved pong");
+                log!("Recieved pong");
               }
             }
           }
           Err(err) => {
-            logger::log(format!("Error: {}", err));
+            log!("Error: {}", err);
             break;
           }
         }

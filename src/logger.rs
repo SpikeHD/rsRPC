@@ -8,3 +8,10 @@ pub fn log(message: impl AsRef<str>) {
     );
   }
 }
+
+#[macro_export]
+macro_rules! log {
+  ($($arg:tt)*) => {
+    $crate::logger::log(format!($($arg)*))
+  };
+}

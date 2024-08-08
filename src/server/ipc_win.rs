@@ -7,7 +7,7 @@ use winapi::um::namedpipeapi as pipeapi;
 use winapi::um::winbase;
 
 use crate::cmd::{ActivityCmd, ActivityCmdArgs};
-use crate::logger;
+use crate::log;
 use crate::server::utils;
 
 use super::ipc_utils::Handshake;
@@ -97,7 +97,7 @@ impl IpcConnector {
       }
     }
 
-    logger::log(format!("Created IPC socket: {}", pipe_path));
+    log!("Created IPC socket: {}", pipe_path);
 
     pipe_handle
   }
@@ -165,12 +165,12 @@ impl IpcConnector {
         let message = String::from_utf8(buffer).unwrap();
 
         // Log the message
-        logger::log(&format!("Recieved message: {}", message));
+        log!("Recieved message: {}", message);
 
         match r_type {
           PacketType::Handshake => {
             let Ok(data) = serde_json::from_str::<Handshake>(&message) else {
-              logger::log("Error parsing handshake");
+              log!("Error parsing handshake");
               continue;
             };
 
@@ -195,16 +195,16 @@ impl IpcConnector {
             clone.client_id = data.client_id;
           }
           PacketType::Frame => {
-            logger::log("Recieved frame");
+            log!("Recieved frame");
             if !clone.did_handshake {
-              logger::log("Did not handshake yet, ignoring frame");
+              log!("Did not handshake yet, ignoring frame");
               continue;
             }
 
             let mut activity_cmd = match serde_json::from_str::<ActivityCmd>(&message) {
               Ok(a) => a,
               Err(err) => {
-                logger::log(format!("Error parsing activity command: {}", err));
+                log!("Error parsing activity command: {}", err);
                 continue;
               }
             };
@@ -216,11 +216,11 @@ impl IpcConnector {
 
             match clone.event_sender.send(activity_cmd) {
               Ok(_) => (),
-              Err(err) => logger::log(format!("Error sending activity command: {}", err)),
+              Err(err) => log!("Error sending activity command: {}", err),
             };
           }
           PacketType::Close => {
-            logger::log("Recieved close");
+            log!("Recieved close");
 
             // Send message with an empty activity
             let activity_cmd = ActivityCmd {
@@ -235,7 +235,7 @@ impl IpcConnector {
 
             match clone.event_sender.send(activity_cmd) {
               Ok(_) => (),
-              Err(err) => logger::log(format!("Error sending activity command: {}", err)),
+              Err(err) => log!("Error sending activity command: {}", err),
             };
 
             // reset values
@@ -254,7 +254,7 @@ impl IpcConnector {
             *socket = PipeHandle(pipe_handle);
           }
           PacketType::Ping => {
-            logger::log("Recieved ping");
+            log!("Recieved ping");
 
             // Send a pong
             let resp = encode(PacketType::Pong, message);
@@ -270,7 +270,7 @@ impl IpcConnector {
             }
           }
           PacketType::Pong => {
-            logger::log("Recieved pong");
+            log!("Recieved pong");
           }
         }
       }

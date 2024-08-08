@@ -114,18 +114,18 @@ impl RPCServer {
       proc_event_receiver,
     )));
 
-    logger::log(format!(
+    log!(
       "Starting client connector on port {}...",
       self.client_connector.lock().unwrap().port
-    ));
+    );
     self.client_connector.lock().unwrap().start();
 
-    logger::log("Starting IPC connector...");
+    log!("Starting IPC connector...");
     self.ipc_connector.lock().unwrap().start();
 
-    logger::log("Starting process server...");
+    log!("Starting process server...");
     self.process_server.lock().unwrap().start();
 
-    logger::log("Done! Watching for activity...");
+    log!("Done! Watching for activity...");
   }
 }
