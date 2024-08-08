@@ -178,8 +178,8 @@ impl IpcConnector {
               panic!("Invalid version: {}", data.v);
             }
 
-            // Send utils::connection_resp()
-            let resp = encode(PacketType::Frame, utils::connection_resp().to_string());
+            // Send CONNECTION_REPONSE
+            let resp = encode(PacketType::Frame, utils::CONNECTION_REPONSE.to_string());
 
             unsafe {
               winapi::um::fileapi::WriteFile(

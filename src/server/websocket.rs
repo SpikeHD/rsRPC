@@ -4,9 +4,9 @@ use std::{
 };
 
 use serde::{Deserialize, Serialize};
-use simple_websockets::{Event, EventHub, Message, Responder};
+use simple_websockets::{ConnectionDetails, Event, EventHub, Message, Responder};
 
-use crate::log;
+use crate::{log, server::utils::CONNECTION_REPONSE, url_params::get_url_params};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct WebsocketEvent {
@@ -60,7 +60,19 @@ impl WebsocketConnector {
       loop {
         match server.poll_event() {
           Event::Connect(client_id, responder) => {
+            let connection = responder.connection_details();
+            let url_params = get_url_params(connection.uri.clone());
+            let version = url_params.get("v").unwrap_or(&"0".to_string()).clone();
+            let encoding = url_params.get("encoding").unwrap_or(&"json".to_string()).clone();
+
             log!("[Websocket] Client {} connected", client_id);
+        
+            if version != "1" || encoding != "json" {
+              log!("[Websocket] Invalid connection from client {}", client_id);
+              return;
+            }
+
+            responder.send(Message::Text(CONNECTION_REPONSE.to_string()));
             
             clients.insert(client_id, responder);
           }
@@ -81,9 +93,5 @@ impl WebsocketConnector {
         std::thread::sleep(std::time::Duration::from_millis(100));
       }
     });
-  }
-
-  fn on_connect(&self, client_id: u64) {
-    log!("[Websocket] Client {} connected", client_id);
   }
 }

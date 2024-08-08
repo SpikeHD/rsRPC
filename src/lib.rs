@@ -10,6 +10,7 @@ pub mod cmd;
 pub mod detection;
 mod logger;
 mod server;
+mod url_params;
 
 #[derive(Clone)]
 pub struct RPCServer {
@@ -113,7 +114,7 @@ impl RPCServer {
     self.ipc_connector = Arc::new(Mutex::new(IpcConnector::new(ipc_event_sender)));
     self.client_connector = Arc::new(Mutex::new(ClientConnector::new(
       1337,
-      server::utils::connection_resp().to_string(),
+      server::utils::CONNECTION_REPONSE.to_string(),
       ipc_event_receiver,
       proc_event_receiver,
       ws_event_reciever,
