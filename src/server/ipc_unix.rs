@@ -1,5 +1,5 @@
 use crate::cmd::{ActivityCmd, ActivityCmdArgs};
-use crate::logger;
+use crate::log;
 use crate::server::ipc_utils::Handshake;
 use crate::server::utils;
 use std::env;
