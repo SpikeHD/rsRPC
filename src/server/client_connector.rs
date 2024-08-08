@@ -100,6 +100,7 @@ impl ClientConnector {
     // Create a thread for each reciever
     let mut ipc_clone = self.clone();
     let mut proc_clone = self.clone();
+    let mut ws_clone = self.clone();
 
     std::thread::spawn(move || {
       loop {
@@ -285,6 +286,26 @@ impl ClientConnector {
         );
 
         proc_clone.send_data(payload);
+      }
+    });
+
+    std::thread::spawn(move || {
+      loop {
+        let ws_event = ws_clone.ws_event_rec.lock().unwrap().recv().unwrap();
+
+        // if there are no clients, skip
+        if ws_clone.clients.lock().unwrap().len() == 0 {
+          log!("[Client Connector] No clients connected, skipping");
+          continue;
+        }
+
+        // Just send the event as-is, there isn't really anything to go off of here
+        // I will change this if arRPC implements things like INVITE_BROWSER event responses, to ensure compatibility
+        let payload = serde_json::to_string(&ws_event).unwrap_or("".to_string());
+
+        log!("[Client Connector] Sending payload for WS event");
+
+        ws_clone.send_data(payload);
       }
     });
   }

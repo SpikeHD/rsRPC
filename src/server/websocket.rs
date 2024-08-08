@@ -73,7 +73,7 @@ impl WebsocketConnector {
 
             if version != "1" || encoding != "json" {
               log!("[Websocket] Invalid connection from client {}", client_id);
-              return;
+              continue;
             }
 
             responder.send(Message::Text(CONNECTION_REPONSE.to_string()));
@@ -105,6 +105,19 @@ impl WebsocketConnector {
                 continue;
               }
             };
+
+            // If origin isn't a Discord URL, ignore
+            let origin = responder.connection_details().headers.get("origin");
+
+            if let Some(origin) = origin {
+              let value = origin.to_str().unwrap_or_default();
+              let valid = ["https://discord.com", "https://canary.discord.com", "https://ptb.discord.com"];
+
+              if !valid.contains(&value) {
+                log!("[Websocket] Invalid origin from client {}", client_id);
+                continue;
+              }
+            }
 
             match event.cmd.as_str() {
               "INVITE_BROWSER" => handle_invite(&event, &event_sender, responder),
