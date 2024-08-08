@@ -1,24 +1,40 @@
 use std::{
   collections::HashMap,
-  sync::{Arc, Mutex},
+  sync::{mpsc, Arc, Mutex},
 };
 
+use serde::{Deserialize, Serialize};
 use simple_websockets::{Event, EventHub, Message, Responder};
 
 use crate::log;
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct WebsocketEvent {
+  pub cmd: String,
+  pub args: HashMap<String, String>,
+  pub data: HashMap<String, String>,
+  pub evt: String,
+  pub nonce: String,
+}
 
 pub struct WebsocketConnector {
   pub port: u16,
   server: Arc<Mutex<EventHub>>,
   pub clients: Arc<Mutex<HashMap<u64, Responder>>>,
+
+  event_sender: mpsc::Sender<WebsocketEvent>,
 }
 
 impl WebsocketConnector {
-  pub fn new(port: u16) -> WebsocketConnector {
+  pub fn new(port: u16, event_sender: mpsc::Sender<WebsocketEvent>) -> WebsocketConnector {
     WebsocketConnector {
-      server: Arc::new(Mutex::new(simple_websockets::launch(port).unwrap())),
+      server: Arc::new(Mutex::new(simple_websockets::launch(port).unwrap_or_else(|_| {
+        log!("[Websocket] Failed to launch websocket server, port may already be in use");
+        std::process::exit(1);
+      }))),
       clients: Arc::new(Mutex::new(HashMap::new())),
       port,
+      event_sender,
     }
   }
 

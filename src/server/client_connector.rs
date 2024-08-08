@@ -7,7 +7,7 @@ use simple_websockets::{Event, EventHub, Message, Responder};
 
 use crate::{cmd::ActivityCmd, log};
 
-use super::process::ProcessDetectedEvent;
+use super::{process::ProcessDetectedEvent, websocket:: WebsocketEvent};
 
 fn empty_activity(pid: u64, socket_id: String) -> String {
   format!(
@@ -34,6 +34,7 @@ pub struct ClientConnector {
 
   pub ipc_event_rec: Arc<Mutex<std::sync::mpsc::Receiver<ActivityCmd>>>,
   pub proc_event_rec: Arc<Mutex<std::sync::mpsc::Receiver<ProcessDetectedEvent>>>,
+  pub ws_event_rec: Arc<Mutex<std::sync::mpsc::Receiver<WebsocketEvent>>>,
 }
 
 impl ClientConnector {
@@ -42,9 +43,13 @@ impl ClientConnector {
     data_on_connect: String,
     ipc_event_rec: std::sync::mpsc::Receiver<ActivityCmd>,
     proc_event_rec: std::sync::mpsc::Receiver<ProcessDetectedEvent>,
+    ws_event_rec: std::sync::mpsc::Receiver<WebsocketEvent>,
   ) -> ClientConnector {
     ClientConnector {
-      server: Arc::new(Mutex::new(simple_websockets::launch(port).unwrap())),
+      server: Arc::new(Mutex::new(simple_websockets::launch(port).unwrap_or_else(|_| {
+        log!("[Client Connector] Failed to launch websocket server, port may already be in use");
+        std::process::exit(1);
+      }))),
       clients: Arc::new(Mutex::new(HashMap::new())),
       data_on_connect,
       port,
@@ -54,6 +59,7 @@ impl ClientConnector {
 
       ipc_event_rec: Arc::new(Mutex::new(ipc_event_rec)),
       proc_event_rec: Arc::new(Mutex::new(proc_event_rec)),
+      ws_event_rec: Arc::new(Mutex::new(ws_event_rec)),
     }
   }
 

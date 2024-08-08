@@ -1,6 +1,6 @@
 use detection::DetectableActivity;
 use serde_json::Value;
-use server::{client_connector::ClientConnector, ipc::IpcConnector, process::ProcessServer};
+use server::{client_connector::ClientConnector, ipc::IpcConnector, process::ProcessServer, websocket::WebsocketConnector};
 use std::{
   path::PathBuf,
   sync::{mpsc, Arc, Mutex},
@@ -17,6 +17,7 @@ pub struct RPCServer {
   process_server: Arc<Mutex<ProcessServer>>,
   client_connector: Arc<Mutex<ClientConnector>>,
   ipc_connector: Arc<Mutex<IpcConnector>>,
+  ws_connector: Arc<Mutex<WebsocketConnector>>,
 }
 
 impl RPCServer {
@@ -49,8 +50,10 @@ impl RPCServer {
         "".to_string(),
         mpsc::channel().1,
         mpsc::channel().1,
+        mpsc::channel().1,
       ))),
       ipc_connector: Arc::new(Mutex::new(IpcConnector::new(mpsc::channel().0))),
+      ws_connector: Arc::new(Mutex::new(WebsocketConnector::new(65448, mpsc::channel().0))),
     })
   }
 
@@ -100,6 +103,7 @@ impl RPCServer {
 
     let (proc_event_sender, proc_event_receiver) = mpsc::channel();
     let (ipc_event_sender, ipc_event_receiver) = mpsc::channel();
+    let (ws_event_sender, ws_event_reciever) = mpsc::channel();
 
     self.process_server = Arc::new(Mutex::new(ProcessServer::new(
       self.detectable.lock().unwrap().to_vec(),
@@ -112,7 +116,9 @@ impl RPCServer {
       server::utils::connection_resp().to_string(),
       ipc_event_receiver,
       proc_event_receiver,
+      ws_event_reciever,
     )));
+    self.ws_connector = Arc::new(Mutex::new(WebsocketConnector::new(6463, ws_event_sender)));
 
     log!(
       "[RPC Server] Starting client connector on port {}...",
@@ -125,6 +131,9 @@ impl RPCServer {
 
     log!("[RPC Server] Starting process server...");
     self.process_server.lock().unwrap().start();
+
+    log!("[RPC Server] Starting websocket connector...");
+    self.ws_connector.lock().unwrap().start();
 
     log!("[RPC Server] Done! Watching for activity...");
   }
