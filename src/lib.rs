@@ -53,7 +53,7 @@ impl RPCServer {
         mpsc::channel().1,
       ))),
       ipc_connector: Arc::new(Mutex::new(IpcConnector::new(mpsc::channel().0))),
-      ws_connector: Arc::new(Mutex::new(WebsocketConnector::new(65448, mpsc::channel().0))),
+      ws_connector: Arc::new(Mutex::new(WebsocketConnector::new(mpsc::channel().0))),
     })
   }
 
@@ -118,7 +118,7 @@ impl RPCServer {
       proc_event_receiver,
       ws_event_reciever,
     )));
-    self.ws_connector = Arc::new(Mutex::new(WebsocketConnector::new(6463, ws_event_sender)));
+    self.ws_connector = Arc::new(Mutex::new(WebsocketConnector::new(ws_event_sender)));
 
     log!(
       "[RPC Server] Starting client connector on port {}...",

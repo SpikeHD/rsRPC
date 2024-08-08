@@ -11,9 +11,9 @@ use crate::log;
 #[derive(Clone, Serialize, Deserialize)]
 pub struct WebsocketEvent {
   pub cmd: String,
-  pub args: HashMap<String, String>,
-  pub data: HashMap<String, String>,
-  pub evt: String,
+  pub args: Option<HashMap<String, String>>,
+  pub data: Option<HashMap<String, String>>,
+  pub evt: Option<String>,
   pub nonce: String,
 }
 
@@ -26,16 +26,27 @@ pub struct WebsocketConnector {
 }
 
 impl WebsocketConnector {
-  pub fn new(port: u16, event_sender: mpsc::Sender<WebsocketEvent>) -> WebsocketConnector {
-    WebsocketConnector {
-      server: Arc::new(Mutex::new(simple_websockets::launch(port).unwrap_or_else(|_| {
-        log!("[Websocket] Failed to launch websocket server, port may already be in use");
-        std::process::exit(1);
-      }))),
-      clients: Arc::new(Mutex::new(HashMap::new())),
-      port,
-      event_sender,
+  pub fn new(event_sender: mpsc::Sender<WebsocketEvent>) -> WebsocketConnector {
+    // Try starting websocket server on ports 6463 - 6472
+    for port in 6463..6472 {
+      match simple_websockets::launch(port) {
+        Ok(server) => {
+          log!("[Websocket] Server started on port {}", port);
+          return WebsocketConnector {
+            server: Arc::new(Mutex::new(server)),
+            clients: Arc::new(Mutex::new(HashMap::new())),
+            port,
+            event_sender,
+          };
+        }
+        Err(_) => {
+          log!("[Websocket] Failed to start server on port {}", port);
+        }
+      }
     }
+
+    log!("[Websocket] Failed to start server on any port");
+    std::process::exit(1);
   }
 
   pub fn start(&self) {
@@ -70,5 +81,9 @@ impl WebsocketConnector {
         std::thread::sleep(std::time::Duration::from_millis(100));
       }
     });
+  }
+
+  fn on_connect(&self, client_id: u64) {
+    log!("[Websocket] Client {} connected", client_id);
   }
 }
