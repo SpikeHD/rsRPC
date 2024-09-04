@@ -217,9 +217,17 @@ impl ProcessServer {
                 let process_path = process.path.to_lowercase().replace('\\', "/");
                 // Process path (but consistent slashes, so we can compare properly)
                 let exec_path = executable.name.replace('\\', "/");
-                let found = !process_path.is_empty() && (
-                  process_path.contains(&exec_path) || name_no_ext(&process_path).contains(&exec_path)
-                );
+                let found;
+
+                // If the exec_path is, in fact, a path, we can do a partial match
+                if exec_path.contains('/') {
+                  found = !process_path.is_empty() && (
+                    process_path.contains(&exec_path) || name_no_ext(&process_path).contains(&exec_path)
+                  );
+                } else {
+                  // If the exec_path is not a path, we need to do a full match, or else things like "abcd.exe" would match "cd.exe"
+                  found = process_path == exec_path || name_no_ext(&process_path) == exec_path;
+                }
 
                 if !found {
                   continue;
