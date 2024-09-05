@@ -7,7 +7,7 @@ use simple_websockets::{Event, EventHub, Message, Responder};
 
 use crate::{cmd::ActivityCmd, log};
 
-use super::{process::ProcessDetectedEvent, websocket::WebsocketEvent};
+use super::process::ProcessDetectedEvent;
 
 fn empty_activity(pid: u64, socket_id: String) -> String {
   format!(
@@ -34,7 +34,7 @@ pub struct ClientConnector {
 
   pub ipc_event_rec: Arc<Mutex<std::sync::mpsc::Receiver<ActivityCmd>>>,
   pub proc_event_rec: Arc<Mutex<std::sync::mpsc::Receiver<ProcessDetectedEvent>>>,
-  pub ws_event_rec: Arc<Mutex<std::sync::mpsc::Receiver<WebsocketEvent>>>,
+  pub ws_event_rec: Arc<Mutex<std::sync::mpsc::Receiver<ActivityCmd>>>,
 }
 
 impl ClientConnector {
@@ -43,7 +43,7 @@ impl ClientConnector {
     data_on_connect: String,
     ipc_event_rec: std::sync::mpsc::Receiver<ActivityCmd>,
     proc_event_rec: std::sync::mpsc::Receiver<ProcessDetectedEvent>,
-    ws_event_rec: std::sync::mpsc::Receiver<WebsocketEvent>,
+    ws_event_rec: std::sync::mpsc::Receiver<ActivityCmd>,
   ) -> ClientConnector {
     ClientConnector {
       server: Arc::new(Mutex::new(simple_websockets::launch(port).unwrap_or_else(
@@ -112,7 +112,15 @@ impl ClientConnector {
           continue;
         }
 
-        if ipc_activity.args.activity.is_none() {
+        let args = match ipc_activity.args {
+          Some(args) => args,
+          None => {
+            log!("[Client Connector] Invalid activity command, skipping");
+            continue;
+          },
+        };
+
+        if args.activity.is_none() {
           // Send empty payload
           let payload = empty_activity(ipc_clone.last_pid.unwrap_or_default(), "0".to_string());
 
@@ -123,7 +131,7 @@ impl ClientConnector {
           continue;
         }
 
-        let activity = ipc_activity.args.activity.as_ref();
+        let activity = args.activity.as_ref();
         let button_urls: Vec<String> = match activity {
           Some(a) => a
             .buttons
@@ -188,7 +196,7 @@ impl ClientConnector {
           },
           serde_json::to_string(&button_labels).unwrap_or("".to_string()),
           serde_json::to_string(&button_urls).unwrap_or("".to_string()),
-          ipc_activity.args.pid,
+          args.pid.unwrap_or_default(),
         );
 
         log!("[Client Connector] {:?}", payload);

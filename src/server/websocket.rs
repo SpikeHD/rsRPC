@@ -6,27 +6,18 @@ use std::{
 use serde::{Deserialize, Serialize};
 use simple_websockets::{Event, EventHub, Message, Responder};
 
-use crate::{log, server::utils::CONNECTION_REPONSE, url_params::get_url_params};
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WebsocketEvent {
-  pub cmd: String,
-  pub args: Option<HashMap<String, String>>,
-  pub data: Option<HashMap<String, String>>,
-  pub evt: Option<String>,
-  pub nonce: String,
-}
+use crate::{cmd::{ActivityCmd, ActivityCmdArgs}, log, server::utils::CONNECTION_REPONSE, url_params::get_url_params};
 
 #[derive(Clone)]
 pub struct WebsocketConnector {
   server: Arc<Mutex<EventHub>>,
   pub clients: Arc<Mutex<HashMap<u64, Responder>>>,
 
-  event_sender: mpsc::Sender<WebsocketEvent>,
+  event_sender: mpsc::Sender<ActivityCmd>,
 }
 
 impl WebsocketConnector {
-  pub fn new(event_sender: mpsc::Sender<WebsocketEvent>) -> Self {
+  pub fn new(event_sender: mpsc::Sender<ActivityCmd>) -> Self {
     // Try starting websocket server on ports 6463 - 6472
     for port in 6463..6472 {
       match simple_websockets::launch(port) {
@@ -84,6 +75,8 @@ impl WebsocketConnector {
           Event::Disconnect(client_id) => {
             log!("[Websocket] Client {} disconnected", client_id);
             clients.remove(&client_id);
+
+            handle_disconnect(client_id, &event_sender);
           }
           Event::Message(client_id, message) => {
             log!(
@@ -98,11 +91,12 @@ impl WebsocketConnector {
               _ => "".to_string(),
             };
 
-            // If not WebsocketEvent, ignore
-            let event: WebsocketEvent = match serde_json::from_str(&message) {
+            // If not ActivityCmd, ignore
+            let event: ActivityCmd = match serde_json::from_str(&message) {
               Ok(event) => event,
-              Err(_) => {
+              Err(e) => {
                 log!("[Websocket] Invalid message from client {}", client_id);
+                log!("[Websocket] Error: {}", e);
                 continue;
               }
             };
@@ -126,10 +120,13 @@ impl WebsocketConnector {
 
             match event.cmd.as_str() {
               "INVITE_BROWSER" => handle_invite(&event, &event_sender, responder),
+              "SET_ACTIVITY" => handle_set_activity(&event, &event_sender, responder),
               "DEEP_LINK" => {
                 log!("[Websocket] Deep link unimplemented. PRs are open!");
+              },
+              _ => {
+                log!("[Websocket] Unknown command: {}", event.cmd);
               }
-              _ => (),
             }
           }
         }
@@ -138,16 +135,28 @@ impl WebsocketConnector {
   }
 }
 
+fn event_args_as_hashmap(args: Option<ActivityCmdArgs>) -> HashMap<String, String> {
+  // Serde serialize the args
+  let args = match args {
+    Some(args) => serde_json::to_string(&args).unwrap_or("".to_string()),
+    None => "{}".to_string(),
+  };
+
+  // Re-deserialize the args as a hashmap
+  serde_json::from_str::<HashMap<String, String>>(&args).unwrap_or_default()
+}
+
 fn handle_invite(
-  event: &WebsocketEvent,
-  event_sender: &mpsc::Sender<WebsocketEvent>,
+  event: &ActivityCmd,
+  event_sender: &mpsc::Sender<ActivityCmd>,
   responder: &Responder,
 ) {
   // Let's just assume this went well I don't care
-  let response = WebsocketEvent {
+  let response = ActivityCmd {
+    application_id: event.application_id.clone(),
     cmd: event.cmd.clone(),
     args: None,
-    data: event.args.clone(),
+    data: Some(event_args_as_hashmap(event.args.clone())),
     evt: None,
     nonce: event.nonce.clone(),
   };
@@ -157,4 +166,19 @@ fn handle_invite(
 
   // Respond
   responder.send(Message::Text(serde_json::to_string(&response).unwrap()));
+}
+
+fn handle_set_activity(
+  event: &ActivityCmd,
+  event_sender: &mpsc::Sender<ActivityCmd>,
+  responder: &Responder,
+) {
+  
+}
+
+fn handle_disconnect(
+  client_id: u64,
+  event_sender: &mpsc::Sender<ActivityCmd>,
+) {
+  // Send empty activity
 }

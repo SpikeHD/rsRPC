@@ -209,9 +209,17 @@ impl IpcConnector {
               }
             };
 
+            let args = match activity_cmd.args {
+              Some(ref args) => args,
+              None => {
+                log!("[IPC] Invalid activity command, skipping");
+                continue;
+              },
+            };
+
             activity_cmd.application_id = Some(clone.client_id.clone());
 
-            clone.pid = activity_cmd.args.pid;
+            clone.pid = args.pid.unwrap_or_default();
             clone.nonce.clone_from(&activity_cmd.nonce);
 
             match clone.event_sender.send(activity_cmd) {
@@ -226,10 +234,12 @@ impl IpcConnector {
             let activity_cmd = ActivityCmd {
               application_id: Some(clone.client_id.clone()),
               cmd: "SET_ACTIVITY".to_string(),
-              args: ActivityCmdArgs {
-                pid: clone.pid,
+              data: None,
+              evt: None,
+              args: Some(ActivityCmdArgs {
+                pid: Some(clone.pid),
                 activity: None,
-              },
+              }),
               nonce: clone.nonce.clone(),
             };
 
