@@ -14,7 +14,8 @@ clap = { version = "4.3.21", features = ["derive"], optional = true }
 sysinfo = "0.29.8"
 serde = { version = "1.0.166", features = ["derive"] }
 serde_json = "1.0"
-simple-websockets = { git = "https://github.com/SpikeHD/simple-websockets.git", branch = "master" }
+#simple-websockets = { git = "https://github.com/SpikeHD/simple-websockets.git", branch = "master" }
+simple-websockets = { path = "S:\\simple-websockets" }
 chrono = "0.4.13"
 rayon = "1.7.0"
 

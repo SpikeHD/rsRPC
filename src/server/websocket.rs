@@ -17,6 +17,7 @@ pub struct WebsocketEvent {
   pub nonce: String,
 }
 
+#[derive(Clone)]
 pub struct WebsocketConnector {
   server: Arc<Mutex<EventHub>>,
   pub clients: Arc<Mutex<HashMap<u64, Responder>>>,
@@ -25,13 +26,13 @@ pub struct WebsocketConnector {
 }
 
 impl WebsocketConnector {
-  pub fn new(event_sender: mpsc::Sender<WebsocketEvent>) -> WebsocketConnector {
+  pub fn new(event_sender: mpsc::Sender<WebsocketEvent>) -> Self {
     // Try starting websocket server on ports 6463 - 6472
     for port in 6463..6472 {
       match simple_websockets::launch(port) {
         Ok(server) => {
           log!("[Websocket] Server started on port {}", port);
-          return WebsocketConnector {
+          return Self {
             server: Arc::new(Mutex::new(server)),
             clients: Arc::new(Mutex::new(HashMap::new())),
             event_sender,
@@ -57,6 +58,8 @@ impl WebsocketConnector {
       let mut clients = clients.lock().unwrap();
 
       loop {
+        log!("[Websocket] Polling for events...");
+
         match server.poll_event() {
           Event::Connect(client_id, responder) => {
             let connection = responder.connection_details();
@@ -130,8 +133,6 @@ impl WebsocketConnector {
             }
           }
         }
-
-        std::thread::sleep(std::time::Duration::from_millis(100));
       }
     });
   }

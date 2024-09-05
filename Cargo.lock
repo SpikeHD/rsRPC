@@ -797,7 +797,6 @@ dependencies = [
 [[package]]
 name = "simple-websockets"
 version = "0.1.6"
-source = "git+https://github.com/SpikeHD/simple-websockets.git?branch=master#d59531464cce6958978d7da29a6c6b55817af298"
 dependencies = [
  "flume",
  "futures-util",

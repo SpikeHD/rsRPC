@@ -1,7 +1,7 @@
 use detection::DetectableActivity;
 use serde_json::Value;
 use server::{
-  client_connector::ClientConnector, ipc::IpcConnector, process::ProcessServer,
+  client_connector::ClientConnector, ipc::IpcConnector, process::{self, ProcessServer},
   websocket::WebsocketConnector,
 };
 use std::{
@@ -16,12 +16,17 @@ mod server;
 mod url_params;
 
 #[derive(Clone)]
-pub struct RPCServer {
-  detectable: Arc<Mutex<Vec<DetectableActivity>>>,
+pub struct Connectors {
   process_server: Arc<Mutex<ProcessServer>>,
   client_connector: Arc<Mutex<ClientConnector>>,
   ipc_connector: Arc<Mutex<IpcConnector>>,
   ws_connector: Arc<Mutex<WebsocketConnector>>,
+}
+
+#[derive(Clone)]
+pub struct RPCServer {
+  detectable: Arc<Mutex<Vec<DetectableActivity>>>,
+  connectors: Option<Connectors>,
 }
 
 impl RPCServer {
@@ -47,17 +52,8 @@ impl RPCServer {
     Ok(Self {
       detectable: Arc::new(Mutex::new(detectable)),
 
-      // These are default empty servers, and are replaced on start()
-      process_server: Arc::new(Mutex::new(ProcessServer::new(vec![], mpsc::channel().0, 1))),
-      client_connector: Arc::new(Mutex::new(ClientConnector::new(
-        65447,
-        "".to_string(),
-        mpsc::channel().1,
-        mpsc::channel().1,
-        mpsc::channel().1,
-      ))),
-      ipc_connector: Arc::new(Mutex::new(IpcConnector::new(mpsc::channel().0))),
-      ws_connector: Arc::new(Mutex::new(WebsocketConnector::new(mpsc::channel().0))),
+      // Default to empty servers
+      connectors: None,
     })
   }
 
@@ -76,7 +72,15 @@ impl RPCServer {
    * Add new detectable processes on-the-fly. This should be run AFTER start().
    */
   pub fn append_detectables(&mut self, detectable: Vec<DetectableActivity>) {
+    if self.connectors.is_none() {
+      log!("[RPC Server] Cannot append detectables, connectors are not initialized");
+      return;
+    }
+
     self
+      .connectors
+      .as_mut()
+      .unwrap()
       .process_server
       .lock()
       .unwrap()
@@ -87,7 +91,15 @@ impl RPCServer {
    * Remove a detectable process by name.
    */
   pub fn remove_detectable_by_name(&mut self, name: String) {
+    if self.connectors.is_none() {
+      log!("[RPC Server] Cannot remove detectable, connectors are not initialized");
+      return;
+    }
+
     self
+      .connectors
+      .as_mut()
+      .unwrap()
       .process_server
       .lock()
       .unwrap()
@@ -98,7 +110,14 @@ impl RPCServer {
    * Manually trigger a scan for processes. This should be run AFTER start().
    */
   pub fn scan_for_processes(&mut self) {
-    match self.process_server.lock().unwrap().scan_for_processes() {
+    if self.connectors.is_none() {
+      log!("[RPC Server] Cannot scan processes, connectors are not initialized");
+      return;
+    }
+
+    let process_server = self.connectors.as_mut().unwrap().process_server.lock().unwrap();
+
+    match process_server.scan_for_processes() {
       Ok(_) => {}
       Err(err) => {
         log!("[RPC Server] Error while scanning processes: {}", err);
@@ -107,43 +126,43 @@ impl RPCServer {
   }
 
   pub fn start(&mut self) {
-    // Ensure the IPC socket is closed
-    self.ipc_connector.lock().unwrap().close();
-
     let (proc_event_sender, proc_event_receiver) = mpsc::channel();
     let (ipc_event_sender, ipc_event_receiver) = mpsc::channel();
     let (ws_event_sender, ws_event_reciever) = mpsc::channel();
 
-    self.process_server = Arc::new(Mutex::new(ProcessServer::new(
-      self.detectable.lock().unwrap().to_vec(),
-      proc_event_sender,
-      8,
-    )));
-    self.ipc_connector = Arc::new(Mutex::new(IpcConnector::new(ipc_event_sender)));
-    self.client_connector = Arc::new(Mutex::new(ClientConnector::new(
-      1337,
-      server::utils::CONNECTION_REPONSE.to_string(),
-      ipc_event_receiver,
-      proc_event_receiver,
-      ws_event_reciever,
-    )));
-    self.ws_connector = Arc::new(Mutex::new(WebsocketConnector::new(ws_event_sender)));
+    let connectors = Connectors {
+      process_server: Arc::new(Mutex::new(ProcessServer::new(
+        self.detectable.lock().unwrap().to_vec(),
+        proc_event_sender,
+        8,
+      ))),
+      client_connector: Arc::new(Mutex::new(ClientConnector::new(
+        1337,
+        server::utils::CONNECTION_REPONSE.to_string(),
+        ipc_event_receiver,
+        proc_event_receiver,
+        ws_event_reciever,
+      ))),
+      ipc_connector: Arc::new(Mutex::new(IpcConnector::new(ipc_event_sender))),
+      ws_connector: Arc::new(Mutex::new(WebsocketConnector::new(ws_event_sender))),
+    };
 
     log!(
       "[RPC Server] Starting client connector on port {}...",
-      self.client_connector.lock().unwrap().port
+      connectors.client_connector.lock().unwrap().port
     );
-    self.client_connector.lock().unwrap().start();
+    connectors.client_connector.lock().unwrap().start();
 
     log!("[RPC Server] Starting IPC connector...");
-    self.ipc_connector.lock().unwrap().start();
+    connectors.ipc_connector.lock().unwrap().start();
 
     log!("[RPC Server] Starting process server...");
-    self.process_server.lock().unwrap().start();
+    connectors.process_server.lock().unwrap().start();
 
     log!("[RPC Server] Starting websocket connector...");
-    self.ws_connector.lock().unwrap().start();
+    connectors.ws_connector.lock().unwrap().start();
 
     log!("[RPC Server] Done! Watching for activity...");
+    self.connectors = Some(connectors);
   }
 }
