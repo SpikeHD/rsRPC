@@ -178,6 +178,14 @@ impl IpcConnector {
                   log!("[IPC] Error parsing activity command");
                   continue;
                 };
+                
+                let args = match activity_cmd.args {
+                  Some(ref args) => args,
+                  None => {
+                    log!("[IPC] Invalid activity command, skipping");
+                    continue;
+                  }
+                };
 
                 activity_cmd.application_id = Some(clone.client_id.clone());
 
