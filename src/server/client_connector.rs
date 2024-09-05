@@ -307,11 +307,28 @@ impl ClientConnector {
           continue;
         }
 
-        // Just send the event as-is, there isn't really anything to go off of here
-        // I will change this if arRPC implements things like INVITE_BROWSER event responses, to ensure compatibility
-        let payload = serde_json::to_string(&ws_event).unwrap_or("".to_string());
+        if ws_event.cmd != "SET_ACTIVITY" {
+          // Just send the event as-is, there isn't really anything to go off of here
+          // I will change this if arRPC implements things like INVITE_BROWSER event responses, to ensure compatibility
+          let payload = serde_json::to_string(&ws_event).unwrap_or("".to_string());
+          log!("[Client Connector] Sending payload for WS event");
+          ws_clone.send_data(payload);
 
-        log!("[Client Connector] Sending payload for WS event");
+          return;
+        }
+
+        let args = match ws_event.args {
+          Some(ref args) => args,
+          None => {
+            log!("[Client Connector] Invalid activity command, skipping");
+            return;
+          },
+        };
+
+        // Do the whole activity thing
+        let payload = serde_json::to_string(&args).unwrap();
+
+        log!("[Client Connector] Sending payload for WS activity");
 
         ws_clone.send_data(payload);
       }

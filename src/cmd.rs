@@ -11,6 +11,19 @@ pub struct ActivityCmd {
   pub nonce: String,
 }
 
+impl ActivityCmd {
+  pub fn empty() -> Self {
+    Self {
+      application_id: None,
+      cmd: "".to_string(),
+      args: None,
+      data: None,
+      evt: None,
+      nonce: "".to_string(),
+    }
+  }
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 pub struct ActivityCmdArgs {
   pub pid: Option<u64>,
