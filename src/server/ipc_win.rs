@@ -47,7 +47,7 @@ impl IpcConnector {
   /**
    * Close and delete the socket
    */
-  pub fn close(&mut self) {
+  pub fn _close(&mut self) {
     let socket = self.socket.lock().unwrap();
 
     unsafe {

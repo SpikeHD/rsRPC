@@ -1,7 +1,7 @@
 use detection::DetectableActivity;
 use serde_json::Value;
 use server::{
-  client_connector::ClientConnector, ipc::IpcConnector, process::{self, ProcessServer},
+  client_connector::ClientConnector, ipc::IpcConnector, process::ProcessServer,
   websocket::WebsocketConnector,
 };
 use std::{
@@ -115,7 +115,13 @@ impl RPCServer {
       return;
     }
 
-    let process_server = self.connectors.as_mut().unwrap().process_server.lock().unwrap();
+    let process_server = self
+      .connectors
+      .as_mut()
+      .unwrap()
+      .process_server
+      .lock()
+      .unwrap();
 
     match process_server.scan_for_processes() {
       Ok(_) => {}
