@@ -12,7 +12,8 @@
 # Features
 
 * Basic process detection
-* Socket-based RPC detection
+* IPC/Socket-based RPC detection
+* Websocket-based RPC detection
 * Add new processes on the fly
 * Manually trigger scans
 
