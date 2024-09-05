@@ -66,7 +66,7 @@ impl IpcConnector {
   /**
    * Close and delete the socket
    */
-  pub fn close(&mut self) {
+  pub fn _close(&mut self) {
     let socket_addr = self.socket.lock().unwrap().local_addr().unwrap();
     let path = socket_addr
       .as_pathname()
@@ -178,7 +178,7 @@ impl IpcConnector {
                   log!("[IPC] Error parsing activity command");
                   continue;
                 };
-                
+
                 let args = match activity_cmd.args {
                   Some(ref args) => args,
                   None => {
