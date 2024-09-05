@@ -117,7 +117,7 @@ impl ClientConnector {
           None => {
             log!("[Client Connector] Invalid activity command, skipping");
             continue;
-          },
+          }
         };
 
         if args.activity.is_none() {
@@ -322,7 +322,7 @@ impl ClientConnector {
           None => {
             log!("[Client Connector] Invalid activity command, skipping");
             return;
-          },
+          }
         };
 
         // Do the whole activity thing

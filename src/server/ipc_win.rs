@@ -214,7 +214,7 @@ impl IpcConnector {
               None => {
                 log!("[IPC] Invalid activity command, skipping");
                 continue;
-              },
+              }
             };
 
             activity_cmd.application_id = Some(clone.client_id.clone());

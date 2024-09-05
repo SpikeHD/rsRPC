@@ -5,12 +5,19 @@ use std::{
 
 use simple_websockets::{Event, EventHub, Message, Responder};
 
-use crate::{cmd::{ActivityCmd, ActivityCmdArgs}, log, server::utils::CONNECTION_REPONSE, url_params::get_url_params};
+use crate::{
+  cmd::{ActivityCmd, ActivityCmdArgs},
+  log,
+  server::utils::CONNECTION_REPONSE,
+  url_params::get_url_params,
+};
+
+type ActivityResponder = (Option<ActivityCmd>, Responder);
 
 #[derive(Clone)]
 pub struct WebsocketConnector {
   server: Arc<Mutex<EventHub>>,
-  pub clients: Arc<Mutex<HashMap<u64, (Option<ActivityCmd>, Responder)>>>,
+  pub clients: Arc<Mutex<HashMap<u64, ActivityResponder>>>,
 
   event_sender: mpsc::Sender<ActivityCmd>,
 }
@@ -84,7 +91,7 @@ impl WebsocketConnector {
               message
             );
 
-            let mut responder = clients.get_mut(&client_id).unwrap();
+            let responder = clients.get_mut(&client_id).unwrap();
             let message = match message {
               Message::Text(text) => text,
               _ => "".to_string(),
@@ -119,10 +126,10 @@ impl WebsocketConnector {
 
             match event.cmd.as_str() {
               "INVITE_BROWSER" => handle_invite(&event, &event_sender, &responder.1),
-              "SET_ACTIVITY" => handle_set_activity(&event, &event_sender, &mut responder),
+              "SET_ACTIVITY" => handle_set_activity(&event, &event_sender, responder),
               "DEEP_LINK" => {
                 log!("[Websocket] Deep link unimplemented. PRs are open!");
-              },
+              }
               _ => {
                 log!("[Websocket] Unknown command: {}", event.cmd);
               }
@@ -170,7 +177,7 @@ fn handle_invite(
 fn handle_set_activity(
   event: &ActivityCmd,
   event_sender: &mpsc::Sender<ActivityCmd>,
-  responder: &mut (Option<ActivityCmd>, Responder),
+  responder: &mut ActivityResponder,
 ) {
   // Set the last activity for the client
   responder.0 = Some(event.clone());
@@ -181,25 +188,22 @@ fn handle_set_activity(
 fn handle_disconnect(
   _client_id: u64,
   event_sender: &mpsc::Sender<ActivityCmd>,
-  responder: &(Option<ActivityCmd>, Responder),
+  responder: &ActivityResponder,
 ) {
-  match responder.0 {
-    Some(ref activity_cmd) => {
-      // Send empty activity
-      let activity_cmd = ActivityCmd {
-        application_id: activity_cmd.application_id.clone(),
-        cmd: "SET_ACTIVITY".to_string(),
-        data: None,
-        evt: None,
-        args: Some(ActivityCmdArgs {
-          pid: Some(activity_cmd.args.as_ref().unwrap().pid.unwrap_or_default()),
-          activity: None,
-        }),
-        nonce: activity_cmd.nonce.clone(),
-      };
+  if let Some(ref activity_cmd) = responder.0 {
+    // Send empty activity
+    let activity_cmd = ActivityCmd {
+      application_id: activity_cmd.application_id.clone(),
+      cmd: "SET_ACTIVITY".to_string(),
+      data: None,
+      evt: None,
+      args: Some(ActivityCmdArgs {
+        pid: Some(activity_cmd.args.as_ref().unwrap().pid.unwrap_or_default()),
+        activity: None,
+      }),
+      nonce: activity_cmd.nonce.clone(),
+    };
 
-      event_sender.send(activity_cmd).unwrap();
-    }
-    None => (),
+    event_sender.send(activity_cmd).unwrap();
   }
 }
