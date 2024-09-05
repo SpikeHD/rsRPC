@@ -1,4 +1,5 @@
 use rayon::prelude::*;
+use std::sync::atomic::AtomicBool;
 use std::sync::mpsc;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -30,6 +31,7 @@ pub struct ProcessServer {
   detectable_chunks: Arc<Mutex<Vec<Vec<DetectableActivity>>>>,
   custom_detectables: Arc<Mutex<Vec<DetectableActivity>>>,
   thread_count: u16,
+  scanning: Arc<AtomicBool>,
 
   pub detectable_list: Vec<DetectableActivity>,
   pub event_sender: mpsc::Sender<ProcessDetectedEvent>,
@@ -44,6 +46,7 @@ impl ProcessServer {
     thread_count: u16,
   ) -> Self {
     ProcessServer {
+      scanning: Arc::new(AtomicBool::new(false)),
       thread_count,
       detected_list: Arc::new(Mutex::new(vec![])),
       detectable_chunks: Arc::new(Mutex::new(vec![])),
@@ -71,6 +74,7 @@ impl ProcessServer {
   }
 
   pub fn start(&self) {
+    let wait_time = std::time::Duration::from_secs(10);
     let clone = self.clone();
     // Evenly split the detectable list into chunks
     let mut chunks: Vec<Vec<DetectableActivity>> = vec![];
@@ -96,7 +100,14 @@ impl ProcessServer {
     std::thread::spawn(move || {
       // Run the process scan repeatedly (every 3 seconds)
       loop {
-        let detected = clone.scan_for_processes();
+        let detected = match clone.scan_for_processes() {
+          Ok(detected) => detected,
+          Err(err) => {
+            log!("[Process Scanner] Error while scanning processes: {}", err);
+            std::thread::sleep(wait_time);
+            continue;
+          }
+        };
         let mut new_game_detected = false;
 
         // If the detected list has changed, send only the first element
@@ -175,7 +186,7 @@ impl ProcessServer {
           *clone.detected_list.lock().unwrap() = detected;
         }
 
-        std::thread::sleep(Duration::from_secs(10));
+        std::thread::sleep(wait_time);
       }
     });
   }
@@ -194,69 +205,75 @@ impl ProcessServer {
     processes
   }
 
-  pub fn scan_for_processes(&self) -> Vec<DetectableActivity> {
+  pub fn scan_for_processes(&self) -> Result<Vec<DetectableActivity>, Box<dyn std::error::Error>> {
     let chunks = self.detectable_chunks.lock().unwrap();
     let processes = ProcessServer::process_list();
 
     log!("[Process Scanner] Process scan triggered");
 
-    let detected_list: Vec<Vec<DetectableActivity>> = (0..self.thread_count + 1)
-      .into_par_iter()  // Parallel iterator from Rayon
-      .map(|i| {
+    if self.scanning.load(std::sync::atomic::Ordering::Relaxed) {
+      log!("[Process Scanner] Scanning already in progress");
+      return Err("Scanning already in progress".into());
+    }
+
+    let mut detected_list: Vec<DetectableActivity> = (0..self.thread_count + 1)
+      .into_par_iter()
+      .flat_map(|i| {
         // if this is the last thread, we are supposed to scan the custom detectables
-        let mut detectable_chunk: &Vec<DetectableActivity> = &self.custom_detectables.lock().unwrap();
+        let mut detectable_chunk: &Vec<DetectableActivity> =
+          &self.custom_detectables.lock().unwrap();
 
         if i != self.thread_count {
           detectable_chunk = &chunks[i as usize];
         }
 
-        detectable_chunk.iter().filter_map(|obj| {
-          if let Some(executables) = &obj.executables {
-            for executable in executables {
-              for process in &processes {
-                let process_path = process.path.to_lowercase().replace('\\', "/");
-                // Process path (but consistent slashes, so we can compare properly)
-                let exec_path = executable.name.replace('\\', "/");
-                let found;
+        detectable_chunk
+          .iter()
+          .filter_map(|obj| {
+            if let Some(executables) = &obj.executables {
+              for executable in executables {
+                std::thread::sleep(Duration::from_millis(1));
+                for process in &processes {
+                  let process_path = process.path.to_lowercase().replace('\\', "/");
+                  // Process path (but consistent slashes, so we can compare properly)
+                  let exec_path = executable.name.replace('\\', "/");
 
-                // If the exec_path is, in fact, a path, we can do a partial match
-                if exec_path.contains('/') {
-                  found = !process_path.is_empty() && (
-                    process_path.contains(&exec_path) || name_no_ext(&process_path).contains(&exec_path)
-                  );
-                } else {
-                  // If the exec_path is not a path, we need to do a full match, or else things like "abcd.exe" would match "cd.exe"
-                  found = process_path == exec_path || name_no_ext(&process_path) == exec_path;
+                  // If the exec_path is, in fact, a path, we can do a partial match
+                  let found = if exec_path.contains('/') {
+                    !process_path.is_empty()
+                      && (process_path.contains(&exec_path)
+                        || name_no_ext(&process_path).contains(&exec_path))
+                  } else {
+                    // If the exec_path is not a path, we need to do a full match, or else things like "abcd.exe" would match "cd.exe"
+                    process_path == exec_path || name_no_ext(&process_path) == exec_path
+                  };
+
+                  if !found {
+                    continue;
+                  }
+
+                  let mut new_activity = obj.clone();
+                  new_activity.pid = Some(process.pid);
+                  new_activity.timestamp = Some(format!(
+                    "{:?}",
+                    std::time::SystemTime::now()
+                      .duration_since(std::time::UNIX_EPOCH)
+                      .unwrap()
+                      .as_millis()
+                  ));
+                  return Some(new_activity);
                 }
-
-                if !found {
-                  continue;
-                }
-
-                let mut new_activity = obj.clone();
-                new_activity.pid = Some(process.pid);
-                new_activity.timestamp = Some(format!(
-                  "{:?}",
-                  std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap()
-                    .as_millis()
-                ));
-                return Some(new_activity);
               }
             }
-          }
-          None
-        }).collect()
+            None
+          })
+          .collect::<Vec<DetectableActivity>>()
       })
       .collect();
 
-    let mut detected_list_flat: Vec<DetectableActivity> =
-      detected_list.into_iter().flatten().collect();
+    detected_list.shrink_to_fit();
 
-    detected_list_flat.shrink_to_fit();
-
-    detected_list_flat
+    Ok(detected_list)
   }
 }
 

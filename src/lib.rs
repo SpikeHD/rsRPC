@@ -98,7 +98,12 @@ impl RPCServer {
    * Manually trigger a scan for processes. This should be run AFTER start().
    */
   pub fn scan_for_processes(&mut self) {
-    self.process_server.lock().unwrap().scan_for_processes();
+    match self.process_server.lock().unwrap().scan_for_processes() {
+      Ok(_) => {}
+      Err(err) => {
+        log!("[RPC Server] Error while scanning processes: {}", err);
+      }
+    }
   }
 
   pub fn start(&mut self) {
