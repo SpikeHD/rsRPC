@@ -244,8 +244,10 @@ impl ProcessServer {
                       && (process_path.contains(&exec_path)
                         || name_no_ext(&process_path).contains(&exec_path))
                   } else {
+                    // Get the full name of the exec by getting the filename from the path
+                    let proc_exec_name = process_path.split('/').last().unwrap_or("UNKNOWN_GAME_PATH").to_string();
                     // If the exec_path is not a path, we need to do a full match, or else things like "abcd.exe" would match "cd.exe"
-                    process_path == exec_path || name_no_ext(&process_path) == exec_path
+                    proc_exec_name == exec_path || name_no_ext(&proc_exec_name) == exec_path
                   };
 
                   if !found {
@@ -272,6 +274,8 @@ impl ProcessServer {
       .collect();
 
     detected_list.shrink_to_fit();
+
+    log!("[Process Scanner] Process scan complete");
 
     Ok(detected_list)
   }
