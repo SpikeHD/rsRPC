@@ -233,7 +233,8 @@ impl ProcessServer {
 
             if let Some(executables) = &obj.executables {
               for executable in executables {
-                std::thread::sleep(Duration::from_millis(1));
+                std::thread::sleep(std::time::Duration::from_millis(5));
+
                 let exec_path = executable.name.replace('\\', "/");
 
                 for process in &processes {
