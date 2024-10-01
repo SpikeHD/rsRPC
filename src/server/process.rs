@@ -220,23 +220,25 @@ impl ProcessServer {
       .into_par_iter()
       .flat_map(|i| {
         // if this is the last thread, we are supposed to scan the custom detectables
-        let mut detectable_chunk: &Vec<DetectableActivity> =
-          &self.custom_detectables.lock().unwrap();
-
-        if i != self.thread_count {
-          detectable_chunk = &chunks[i as usize];
-        }
+        let detectable_chunk: &Vec<DetectableActivity> = if self.thread_count == i {
+          &self.custom_detectables.lock().unwrap()
+        } else {
+          &chunks[i as usize]
+        };
 
         detectable_chunk
           .iter()
           .filter_map(|obj| {
+            let mut new_activity = obj.clone();
+
             if let Some(executables) = &obj.executables {
               for executable in executables {
                 std::thread::sleep(Duration::from_millis(1));
+                let exec_path = executable.name.replace('\\', "/");
+
                 for process in &processes {
-                  let process_path = process.path.to_lowercase().replace('\\', "/");
                   // Process path (but consistent slashes, so we can compare properly)
-                  let exec_path = executable.name.replace('\\', "/");
+                  let process_path = process.path.to_lowercase().replace('\\', "/");
 
                   // If the exec_path is, in fact, a path, we can do a partial match
                   let found = if exec_path.contains('/') {
@@ -254,7 +256,6 @@ impl ProcessServer {
                     continue;
                   }
 
-                  let mut new_activity = obj.clone();
                   new_activity.pid = Some(process.pid);
                   new_activity.timestamp = Some(format!(
                     "{:?}",
