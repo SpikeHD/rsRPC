@@ -45,7 +45,7 @@ impl RPCServer {
         .map(|x| serde_json::from_value(x.clone()).expect("Detectable list malformed!"))
         .collect();
     } else {
-      println!("Detectable list empty!");
+      log!("Detectable list empty!");
       detectable = vec![];
     }
 

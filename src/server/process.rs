@@ -129,8 +129,6 @@ impl ProcessServer {
               new_game_detected = true;
             }
 
-            println!("Sending event");
-
             clone
               .event_sender
               .send(ProcessDetectedEvent {
