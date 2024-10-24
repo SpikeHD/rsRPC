@@ -58,6 +58,9 @@ jobs:
             ./target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
+      - name: Install target
+        run: rustup target add ${{ matrix.config.target }}
+
       - name: Build
         run: cargo build --release --features binary --target ${{ matrix.config.target }}
 
