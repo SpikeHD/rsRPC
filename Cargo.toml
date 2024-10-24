@@ -28,6 +28,10 @@ name = "rsrpc"
 path = "src/bin.rs"
 required-features = ["binary"]
 
+[profile.release]
+strip = "debuginfo"
+lto = true
+
 [features]
 binary = ["clap", "reqwest"]
 
