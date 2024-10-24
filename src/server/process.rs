@@ -74,7 +74,7 @@ impl ProcessServer {
   }
 
   pub fn start(&self) {
-    let wait_time = std::time::Duration::from_secs(10);
+    let wait_time = Duration::from_secs(10);
     let clone = self.clone();
     // Evenly split the detectable list into chunks
     let mut chunks: Vec<Vec<DetectableActivity>> = vec![];
@@ -233,7 +233,7 @@ impl ProcessServer {
 
             if let Some(executables) = &obj.executables {
               for executable in executables {
-                std::thread::sleep(std::time::Duration::from_millis(5));
+                std::thread::sleep(Duration::from_millis(5));
 
                 let exec_path = executable.name.replace('\\', "/");
 
@@ -248,7 +248,11 @@ impl ProcessServer {
                         || name_no_ext(&process_path).contains(&exec_path))
                   } else {
                     // Get the full name of the exec by getting the filename from the path
-                    let proc_exec_name = process_path.split('/').last().unwrap_or("UNKNOWN_GAME_PATH").to_string();
+                    let proc_exec_name = process_path
+                      .split('/')
+                      .last()
+                      .unwrap_or("UNKNOWN_GAME_PATH")
+                      .to_string();
                     // If the exec_path is not a path, we need to do a full match, or else things like "abcd.exe" would match "cd.exe"
                     proc_exec_name == exec_path || name_no_ext(&proc_exec_name) == exec_path
                   };
