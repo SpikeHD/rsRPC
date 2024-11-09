@@ -314,14 +314,14 @@ impl ClientConnector {
           log!("[Client Connector] Sending payload for WS event");
           ws_clone.send_data(payload);
 
-          return;
+          continue;
         }
 
         let args = match ws_event.args {
           Some(ref args) => args,
           None => {
             log!("[Client Connector] Invalid activity command, skipping");
-            return;
+            continue;
           }
         };
 

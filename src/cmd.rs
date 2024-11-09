@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct ActivityCmd {
   pub application_id: Option<String>,
   pub cmd: String,
@@ -24,13 +24,15 @@ impl ActivityCmd {
   }
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct ActivityCmdArgs {
   pub pid: Option<u64>,
   pub activity: Option<Activity>,
+  // For INVITE_BROWSER
+  pub code: Option<String>,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Activity {
   pub state: Option<String>,
   pub details: Option<String>,
@@ -40,12 +42,12 @@ pub struct Activity {
   pub instance: Option<bool>,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Timestamps {
   pub start: i64,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Assets {
   #[serde(rename = "large_image")]
   pub large_image: Option<String>,
@@ -57,7 +59,7 @@ pub struct Assets {
   pub small_text: Option<String>,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Button {
   pub label: String,
   pub url: String,

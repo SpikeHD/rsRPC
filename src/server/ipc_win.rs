@@ -239,6 +239,7 @@ impl IpcConnector {
               args: Some(ActivityCmdArgs {
                 pid: Some(clone.pid),
                 activity: None,
+                code: None,
               }),
               nonce: clone.nonce.clone(),
             };

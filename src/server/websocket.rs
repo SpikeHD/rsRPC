@@ -200,6 +200,7 @@ fn handle_disconnect(
       args: Some(ActivityCmdArgs {
         pid: Some(activity_cmd.args.as_ref().unwrap().pid.unwrap_or_default()),
         activity: None,
+        code: None,
       }),
       nonce: activity_cmd.nonce.clone(),
     };
