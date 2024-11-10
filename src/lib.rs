@@ -15,6 +15,25 @@ mod logger;
 mod server;
 mod url_params;
 
+#[derive(Clone, Debug)]
+pub struct RPCConfig {
+  pub enable_process_scanner: bool,
+  pub enable_ipc_connector: bool,
+  pub enable_websocket_connector: bool,
+  pub enable_secondary_events: bool,
+}
+
+impl Default for RPCConfig {
+  fn default() -> Self {
+    Self {
+      enable_process_scanner: true,
+      enable_ipc_connector: true,
+      enable_websocket_connector: true,
+      enable_secondary_events: true,
+    }
+  }
+}
+
 #[derive(Clone)]
 pub struct Connectors {
   process_server: Arc<Mutex<ProcessServer>>,
@@ -27,10 +46,14 @@ pub struct Connectors {
 pub struct RPCServer {
   detectable: Arc<Mutex<Vec<DetectableActivity>>>,
   connectors: Option<Connectors>,
+  config: RPCConfig,
 }
 
 impl RPCServer {
-  pub fn from_json_str(detectable: impl AsRef<str>) -> Result<Self, Box<dyn std::error::Error>> {
+  pub fn from_json_str(
+    detectable: impl AsRef<str>,
+    config: RPCConfig,
+  ) -> Result<Self, Box<dyn std::error::Error>> {
     // Parse as JSON, panic if invalid
     let detectable: Value =
       serde_json::from_str(detectable.as_ref()).expect("Invalid JSON provided to RPCServer");
@@ -54,18 +77,19 @@ impl RPCServer {
 
       // Default to empty servers
       connectors: None,
+      config,
     })
   }
 
   /**
    * Create a new RPCServer and read the detectable games list from file.
    */
-  pub fn from_file(file: PathBuf) -> Result<Self, Box<dyn std::error::Error>> {
+  pub fn from_file(file: PathBuf, config: RPCConfig) -> Result<Self, Box<dyn std::error::Error>> {
     // Read the detectable games list from file.
     let detectable = std::fs::read_to_string(&file)
       .unwrap_or_else(|_| panic!("RPCServer could not find file: {:?}", file.display()));
 
-    Self::from_json_str(detectable.as_str())
+    Self::from_json_str(detectable.as_str(), config)
   }
 
   /**
@@ -159,14 +183,25 @@ impl RPCServer {
     );
     connectors.client_connector.lock().unwrap().start();
 
-    log!("[RPC Server] Starting IPC connector...");
-    connectors.ipc_connector.lock().unwrap().start();
+    let config = self.config.clone();
 
-    log!("[RPC Server] Starting process server...");
-    connectors.process_server.lock().unwrap().start();
+    if config.enable_ipc_connector {
+      log!("[RPC Server] Starting IPC connector...");
+      connectors.ipc_connector.lock().unwrap().start();
+    }
 
-    log!("[RPC Server] Starting websocket connector...");
-    connectors.ws_connector.lock().unwrap().start();
+    if config.enable_process_scanner {
+      log!("[RPC Server] Starting process server...");
+      connectors.process_server.lock().unwrap().start();
+    }
+
+    if config.enable_websocket_connector || config.enable_secondary_events {
+      log!("[RPC Server] Starting websocket connector...");
+      connectors.ws_connector.lock().unwrap().start(
+        config.enable_websocket_connector,
+        config.enable_secondary_events,
+      );
+    }
 
     log!("[RPC Server] Done! Watching for activity...");
     self.connectors = Some(connectors);

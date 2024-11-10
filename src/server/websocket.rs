@@ -45,7 +45,7 @@ impl WebsocketConnector {
     std::process::exit(1);
   }
 
-  pub fn start(&self) {
+  pub fn start(&self, set_activity: bool, secondary_events: bool) {
     let server = self.server.clone();
     let clients = self.clients.clone();
     let event_sender = self.event_sender.clone();
@@ -125,8 +125,20 @@ impl WebsocketConnector {
             }
 
             match event.cmd.as_str() {
-              "INVITE_BROWSER" => handle_invite(&event, &event_sender, &responder.1),
-              "SET_ACTIVITY" => handle_set_activity(&event, &event_sender, responder),
+              "INVITE_BROWSER" => {
+                if !secondary_events {
+                  continue;
+                }
+
+                handle_invite(&event, &event_sender, &responder.1)
+              }
+              "SET_ACTIVITY" => {
+                if !set_activity {
+                  continue;
+                }
+
+                handle_set_activity(&event, &event_sender, responder)
+              }
               "DEEP_LINK" => {
                 log!("[Websocket] Deep link unimplemented. PRs are open!");
               }

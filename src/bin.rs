@@ -4,20 +4,22 @@ use std::path::PathBuf;
 #[cfg(feature = "binary")]
 pub fn main() {
   use clap::{command, Parser};
+  use rsrpc::RPCConfig;
 
   #[derive(Parser, Debug)]
   #[command(author, version, about, long_about = None)]
   struct Args {
-    #[arg(short, long,)]
+    #[arg(short, long)]
     detectable_file: Option<PathBuf>,
   }
 
   let args = Args::parse();
   let mut client = if let Some(file) = args.detectable_file {
-    rsrpc::RPCServer::from_file(file).expect("Failed to create RPCServer")
+    rsrpc::RPCServer::from_file(file, RPCConfig::default()).expect("Failed to create RPCServer")
   } else {
     let detectable = reqwest::blocking::get("https://discord.com/api/v9/applications/detectable");
-    rsrpc::RPCServer::from_json_str(detectable.unwrap().text().unwrap()).expect("Failed to create RPCServer")
+    rsrpc::RPCServer::from_json_str(detectable.unwrap().text().unwrap(), RPCConfig::default())
+      .expect("Failed to create RPCServer")
   };
 
   // When running as a binary, enable logs

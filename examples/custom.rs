@@ -1,5 +1,5 @@
+use rsrpc::{detection::DetectableActivity, RPCConfig};
 use std::sync::{Arc, Mutex};
-use rsrpc::detection::DetectableActivity;
 
 pub fn main() {
   // When running as a binary, enable logs
@@ -7,7 +7,8 @@ pub fn main() {
 
   // Create new client and stuff
   let client = Arc::new(Mutex::new(
-    rsrpc::RPCServer::from_json_str("{}").expect("Failed to create RPCServer"),
+    rsrpc::RPCServer::from_json_str("{}", RPCConfig::default())
+      .expect("Failed to create RPCServer"),
   ));
 
   // We can use this cloned Arc of the client to append new detectables
