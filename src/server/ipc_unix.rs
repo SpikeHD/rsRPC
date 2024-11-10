@@ -2,9 +2,10 @@ use crate::cmd::{ActivityCmd, ActivityCmdArgs};
 use crate::log;
 use crate::server::ipc_utils::Handshake;
 use crate::server::utils;
+use std::borrow::BorrowMut;
 use std::env;
-use std::io::{Read, Write};
-use std::os::unix::net::UnixListener;
+use std::io::{BufRead, Read, Write};
+use std::os::unix::net::{UnixListener, UnixStream};
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::Duration;
 
@@ -113,142 +114,155 @@ impl IpcConnector {
 
         match stream {
           Ok(mut stream) => {
-            // Read into buffer
-            let mut buffer = std::io::BufReader::new(&stream);
+            loop {
+              // Read into buffer
+              let mut buffer = std::io::BufReader::new(&stream);
 
-            // Read the packet type and size
-            let mut packet_type = [0; 4];
-            let mut data_size = [0; 4];
+              // Read the packet type and size
+              let mut packet_type = [0; 4];
+              let mut data_size = [0; 4];
 
-            buffer
-              .by_ref()
-              .take(8)
-              .read_exact(&mut packet_type)
-              .expect("Could not read packet type");
-
-            buffer
-              .by_ref()
-              .take(8)
-              .read_exact(&mut data_size)
-              .expect("Could not read data size");
-
-            // Conver the rest of the buffer to a string
-            let mut message = String::new();
-
-            buffer
-              .by_ref()
-              .take(u32::from_le_bytes(data_size) as u64)
-              .read_to_string(&mut message)
-              .expect("Could not read data");
-
-            let r_type = PacketType::from_u32(u32::from_le_bytes(packet_type));
-
-            log!("[IPC] Recieved message: {}", message);
-
-            match r_type {
-              PacketType::Handshake => {
-                log!("[IPC] Recieved handshake");
-                let Ok(data) = serde_json::from_str::<Handshake>(&message) else {
-                  log!("[IPC] Error parsing handshake");
-                  continue;
-                };
-
-                if data.v != 1 {
-                  panic!("Invalid version: {}", data.v);
-                }
-
-                clone.did_handshake = true;
-                clone.client_id = data.client_id;
-
-                // Send CONNECTION_RESPONSE
-                let resp = encode(PacketType::Frame, utils::CONNECTION_REPONSE.to_string());
-
-                match stream.write_all(&resp) {
-                  Ok(_) => (),
-                  Err(err) => log!("[IPC] Error sending connection response: {}", err),
+              match buffer.by_ref().take(8).read_exact(&mut packet_type) {
+                Ok(_) => (),
+                Err(err) => {
+                  log!("[IPC] Error reading packet type: {}", err);
+                  break;
                 }
               }
-              PacketType::Frame => {
-                if !clone.did_handshake {
-                  log!("[IPC] Did not handshake yet, ignoring frame");
-                  continue;
+
+              match buffer.by_ref().take(8).read_exact(&mut data_size) {
+                Ok(_) => (),
+                Err(err) => {
+                  log!("[IPC] Error reading data size: {}", err);
+                  break;
                 }
+              }
 
-                let Ok(mut activity_cmd) = serde_json::from_str::<ActivityCmd>(&message) else {
-                  log!("[IPC] Error parsing activity command");
-                  continue;
-                };
+              // Conver the rest of the buffer to a string
+              let mut message = String::new();
 
-                let args = match activity_cmd.args {
-                  Some(ref args) => args,
-                  None => {
-                    log!("[IPC] Invalid activity command, skipping");
+              match buffer
+                .by_ref()
+                .take(u32::from_le_bytes(data_size) as u64)
+                .read_to_string(&mut message)
+              {
+                Ok(_) => (),
+                Err(err) => {
+                  log!("[IPC] Error reading data: {}", err);
+                  break;
+                }
+              }
+
+              let r_type = PacketType::from_u32(u32::from_le_bytes(packet_type));
+
+              log!("[IPC] Recieved message: {}", message);
+
+              match r_type {
+                PacketType::Handshake => {
+                  log!("[IPC] Recieved handshake");
+                  let Ok(data) = serde_json::from_str::<Handshake>(&message) else {
+                    log!("[IPC] Error parsing handshake");
+                    continue;
+                  };
+
+                  if data.v != 1 {
+                    panic!("Invalid version: {}", data.v);
+                  }
+
+                  clone.did_handshake = true;
+                  clone.client_id = data.client_id;
+
+                  // Send CONNECTION_RESPONSE
+                  let resp =
+                    IpcConnector::encode(PacketType::Frame, utils::CONNECTION_REPONSE.to_string());
+
+                  match stream.write_all(&resp) {
+                    Ok(_) => (),
+                    Err(err) => log!("[IPC] Error sending connection response: {}", err),
+                  }
+                }
+                PacketType::Frame => {
+                  if !clone.did_handshake {
+                    log!("[IPC] Did not handshake yet, ignoring frame");
                     continue;
                   }
-                };
 
-                activity_cmd.application_id = Some(clone.client_id.clone());
+                  let Ok(mut activity_cmd) = serde_json::from_str::<ActivityCmd>(&message) else {
+                    log!("[IPC] Error parsing activity command");
+                    continue;
+                  };
 
-                clone.pid = args.pid.unwrap_or_default();
-                clone.nonce.clone_from(&activity_cmd.nonce);
+                  let args = match activity_cmd.args {
+                    Some(ref args) => args,
+                    None => {
+                      log!("[IPC] Invalid activity command, skipping");
+                      continue;
+                    }
+                  };
 
-                match clone.event_sender.send(activity_cmd) {
-                  Ok(_) => (),
-                  Err(err) => log!("[IPC] Error sending activity command: {}", err),
+                  activity_cmd.application_id = Some(clone.client_id.clone());
+
+                  clone.pid = args.pid.unwrap_or_default();
+                  clone.nonce.clone_from(&activity_cmd.nonce);
+
+                  match clone.event_sender.send(activity_cmd) {
+                    Ok(_) => (),
+                    Err(err) => log!("[IPC] Error sending activity command: {}", err),
+                  }
                 }
-              }
-              PacketType::Close => {
-                log!("[IPC] Recieved close");
+                PacketType::Close => {
+                  log!("[IPC] Recieved close");
 
-                // Send message with an empty activity
-                let activity_cmd = ActivityCmd {
-                  application_id: Some(clone.client_id.clone()),
-                  cmd: "SET_ACTIVITY".to_string(),
-                  data: None,
-                  evt: None,
-                  args: Some(ActivityCmdArgs {
-                    pid: Some(clone.pid),
-                    activity: None,
-                    code: None,
-                  }),
-                  nonce: clone.nonce.clone(),
-                };
+                  // Send message with an empty activity
+                  let activity_cmd = ActivityCmd {
+                    application_id: Some(clone.client_id.clone()),
+                    cmd: "SET_ACTIVITY".to_string(),
+                    data: None,
+                    evt: None,
+                    args: Some(ActivityCmdArgs {
+                      pid: Some(clone.pid),
+                      activity: None,
+                      code: None,
+                    }),
+                    nonce: clone.nonce.clone(),
+                  };
 
-                match clone.event_sender.send(activity_cmd) {
-                  Ok(_) => (),
-                  Err(err) => log!("[IPC] Error sending activity command: {}", err),
+                  match clone.event_sender.send(activity_cmd) {
+                    Ok(_) => (),
+                    Err(err) => log!("[IPC] Error sending activity command: {}", err),
+                  }
+
+                  // reset values
+                  clone.did_handshake = false;
+                  clone.client_id = "".to_string();
+                  clone.pid = 0;
+
+                  // Delete and recreate socket
+                  let mut socket = clone.socket.lock().unwrap();
+
+                  let socket_addr = socket.local_addr().unwrap();
+                  let path = socket_addr
+                    .as_pathname()
+                    .unwrap_or(std::path::Path::new(""));
+
+                  std::fs::remove_file(path).unwrap_or_default();
+
+                  *socket = Self::create_socket(None);
                 }
+                PacketType::Ping => {
+                  log!("[IPC] Recieved ping");
 
-                // reset values
-                clone.did_handshake = false;
-                clone.client_id = "".to_string();
-                clone.pid = 0;
+                  // Send a pong
+                  let resp = IpcConnector::encode(PacketType::Pong, message);
 
-                // Delete and recreate socket
-                let mut socket = clone.socket.lock().unwrap();
-
-                let socket_addr = socket.local_addr().unwrap();
-                let path = socket_addr
-                  .as_pathname()
-                  .unwrap_or(std::path::Path::new(""));
-
-                std::fs::remove_file(path).unwrap_or_default();
-
-                *socket = Self::create_socket(None);
-              }
-              PacketType::Ping => {
-                log!("[IPC] Recieved ping");
-
-                // Send a pong
-                let resp = encode(PacketType::Pong, message);
-
-                match stream.write_all(&resp) {
-                  Ok(_) => (),
-                  Err(err) => log!("[IPC] Error sending pong: {}", err),
-                };
-              }
-              PacketType::Pong => {
-                log!("[IPC] Recieved pong");
+                  match stream.write_all(&resp) {
+                    Ok(_) => (),
+                    Err(err) => log!("[IPC] Error sending pong: {}", err),
+                  };
+                }
+                PacketType::Pong => {
+                  log!("[IPC] Recieved pong");
+                }
               }
             }
           }
@@ -259,20 +273,20 @@ impl IpcConnector {
         }
       }
     });
+  }
 
-    fn encode(r_type: PacketType, data: String) -> Vec<u8> {
-      let mut buffer: Vec<u8> = Vec::new();
+  fn encode(r_type: PacketType, data: String) -> Vec<u8> {
+    let mut buffer: Vec<u8> = Vec::new();
 
-      // Write the packet type
-      buffer.extend_from_slice(&u32::to_le_bytes(r_type as u32));
+    // Write the packet type
+    buffer.extend_from_slice(&u32::to_le_bytes(r_type as u32));
 
-      // Write the data size
-      buffer.extend_from_slice(&u32::to_le_bytes(data.len() as u32));
+    // Write the data size
+    buffer.extend_from_slice(&u32::to_le_bytes(data.len() as u32));
 
-      // Write the data
-      buffer.extend_from_slice(data.as_bytes());
+    // Write the data
+    buffer.extend_from_slice(data.as_bytes());
 
-      buffer
-    }
+    buffer
   }
 }
