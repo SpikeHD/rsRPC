@@ -2,10 +2,9 @@ use crate::cmd::{ActivityCmd, ActivityCmdArgs};
 use crate::log;
 use crate::server::ipc_utils::Handshake;
 use crate::server::utils;
-use std::borrow::BorrowMut;
 use std::env;
-use std::io::{BufRead, Read, Write};
-use std::os::unix::net::{UnixListener, UnixStream};
+use std::io::{Read, Write};
+use std::os::unix::net::UnixListener;
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::Duration;
 
