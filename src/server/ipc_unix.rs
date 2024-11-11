@@ -176,7 +176,7 @@ impl IpcConnector {
 
                   // Send CONNECTION_RESPONSE
                   let resp =
-                    IpcConnector::encode(PacketType::Frame, utils::CONNECTION_REPONSE.to_string());
+                    encode(PacketType::Frame, utils::CONNECTION_REPONSE.to_string());
 
                   match stream.write_all(&resp) {
                     Ok(_) => (),
@@ -257,7 +257,7 @@ impl IpcConnector {
                   log!("[IPC] Recieved ping");
 
                   // Send a pong
-                  let resp = IpcConnector::encode(PacketType::Pong, message);
+                  let resp = encode(PacketType::Pong, message);
 
                   match stream.write_all(&resp) {
                     Ok(_) => (),
