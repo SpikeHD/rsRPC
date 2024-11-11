@@ -175,8 +175,7 @@ impl IpcConnector {
                   clone.client_id = data.client_id;
 
                   // Send CONNECTION_RESPONSE
-                  let resp =
-                    encode(PacketType::Frame, utils::CONNECTION_REPONSE.to_string());
+                  let resp = encode(PacketType::Frame, utils::CONNECTION_REPONSE.to_string());
 
                   match stream.write_all(&resp) {
                     Ok(_) => (),

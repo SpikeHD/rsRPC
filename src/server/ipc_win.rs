@@ -1,9 +1,9 @@
-use std::io::{Read, Write};
-use std::sync::mpsc;
-use std::sync::{Arc, Mutex};
 use interprocess::local_socket::traits::ListenerExt;
 use interprocess::local_socket::{Listener, ListenerOptions, ToFsName};
 use interprocess::os::windows::local_socket::NamedPipe;
+use std::io::{Read, Write};
+use std::sync::mpsc;
+use std::sync::{Arc, Mutex};
 
 use crate::cmd::{ActivityCmd, ActivityCmdArgs};
 use crate::log;
@@ -48,14 +48,15 @@ impl IpcConnector {
       Some(tries) => format!("{}-{}", pipe_path, tries),
       None => format!("{}-{}", pipe_path, 0),
     };
-    
-    let listener = ListenerOptions::new().name(pipe_path.clone().to_fs_name::<NamedPipe>().unwrap());
+
+    let listener =
+      ListenerOptions::new().name(pipe_path.clone().to_fs_name::<NamedPipe>().unwrap());
 
     let socket = match listener.create_sync() {
       Ok(socket) => socket,
       Err(err) => {
         log!("[IPC] Failed to create IPC socket: {}", err);
-        
+
         if tries.unwrap_or(0) < 9 {
           return Self::create_socket(Some(tries.unwrap_or(0) + 1));
         } else {
@@ -81,7 +82,7 @@ impl IpcConnector {
       for stream in socket.incoming() {
         // Little baby delay to keep things smooth
         std::thread::sleep(std::time::Duration::from_millis(5));
-        
+
         match stream {
           Ok(stream) => {
             // Read into buffer
@@ -144,8 +145,7 @@ impl IpcConnector {
                   clone.client_id = data.client_id;
 
                   // Send CONNECTION_RESPONSE
-                  let resp =
-                    encode(PacketType::Frame, utils::CONNECTION_REPONSE.to_string());
+                  let resp = encode(PacketType::Frame, utils::CONNECTION_REPONSE.to_string());
 
                   match buffer.get_mut().write_all(&resp) {
                     Ok(_) => (),
