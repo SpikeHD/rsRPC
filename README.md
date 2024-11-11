@@ -25,9 +25,9 @@
 
 ## Testing it out
 
-1. Download a binary from [actions](https://www.github.com/SpikeHD/rsRPC/actions) or build it yourself below!
-2. Place a `detectable.json` file in the same directory as the binary (you can use [the arRPC one](https://raw.githubusercontent.com/OpenAsar/arrpc/main/src/process/detectable.json) as an example)
-3. Run the binary with `./rsrpc -d ./detectable.json`
+1. Download a binary from [releases](https://github.com/SpikeHD/rsRPC/releases), [GitHub Actions](https://www.github.com/SpikeHD/rsRPC/actions) or build it yourself below!
+2. If you just want to use the default detectable list, just run the binary!
+3. If you want to use your own detectable list, place a `detectable.json` file in the same directory as the binary (you can use [the arRPC one](https://raw.githubusercontent.com/OpenAsar/arrpc/main/src/process/detectable.json) as an example), then run the binary with `./rsrpc -d ./detectable.json`
 
 ## Building the binary
 
