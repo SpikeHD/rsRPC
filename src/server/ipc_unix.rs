@@ -1,13 +1,15 @@
-use crate::cmd::{ActivityCmd, ActivityCmdArgs};
-use crate::log;
-use crate::server::ipc_utils::Handshake;
-use crate::server::utils;
 use std::env;
 use std::io::{Read, Write};
 use std::os::unix::net::UnixListener;
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::Duration;
 
+use crate::cmd::{ActivityCmd, ActivityCmdArgs};
+use crate::log;
+use crate::server::utils;
+
+use super::ipc_utils::encode;
+use super::ipc_utils::Handshake;
 use super::ipc_utils::PacketType;
 
 fn get_socket_path() -> String {
@@ -121,7 +123,7 @@ impl IpcConnector {
               let mut packet_type = [0; 4];
               let mut data_size = [0; 4];
 
-              match buffer.by_ref().take(8).read_exact(&mut packet_type) {
+              match buffer.by_ref().take(4).read_exact(&mut packet_type) {
                 Ok(_) => (),
                 Err(err) => {
                   log!("[IPC] Error reading packet type: {}", err);
@@ -129,7 +131,7 @@ impl IpcConnector {
                 }
               }
 
-              match buffer.by_ref().take(8).read_exact(&mut data_size) {
+              match buffer.by_ref().take(4).read_exact(&mut data_size) {
                 Ok(_) => (),
                 Err(err) => {
                   log!("[IPC] Error reading data size: {}", err);
@@ -137,7 +139,7 @@ impl IpcConnector {
                 }
               }
 
-              // Conver the rest of the buffer to a string
+              // Convert the rest of the buffer to a string
               let mut message = String::new();
 
               match buffer
@@ -165,7 +167,8 @@ impl IpcConnector {
                   };
 
                   if data.v != 1 {
-                    panic!("Invalid version: {}", data.v);
+                    log!("[IPC] Invalid version: {}", data.v);
+                    continue;
                   }
 
                   clone.did_handshake = true;
@@ -247,6 +250,8 @@ impl IpcConnector {
                   std::fs::remove_file(path).unwrap_or_default();
 
                   *socket = Self::create_socket(None);
+
+                  break;
                 }
                 PacketType::Ping => {
                   log!("[IPC] Recieved ping");
@@ -272,20 +277,5 @@ impl IpcConnector {
         }
       }
     });
-  }
-
-  fn encode(r_type: PacketType, data: String) -> Vec<u8> {
-    let mut buffer: Vec<u8> = Vec::new();
-
-    // Write the packet type
-    buffer.extend_from_slice(&u32::to_le_bytes(r_type as u32));
-
-    // Write the data size
-    buffer.extend_from_slice(&u32::to_le_bytes(data.len() as u32));
-
-    // Write the data
-    buffer.extend_from_slice(data.as_bytes());
-
-    buffer
   }
 }

@@ -1,3 +1,4 @@
+#[derive(Debug)]
 pub enum PacketType {
   Handshake,
   Frame,
@@ -23,4 +24,19 @@ impl PacketType {
 pub struct Handshake {
   pub v: u32,
   pub client_id: String,
+}
+
+pub fn encode(r_type: PacketType, data: String) -> Vec<u8> {
+  let mut buffer: Vec<u8> = Vec::new();
+
+  // Write the packet type
+  buffer.extend_from_slice(&u32::to_le_bytes(r_type as u32));
+
+  // Write the data size
+  buffer.extend_from_slice(&u32::to_le_bytes(data.len() as u32));
+
+  // Write the data
+  buffer.extend_from_slice(data.as_bytes());
+
+  buffer
 }
