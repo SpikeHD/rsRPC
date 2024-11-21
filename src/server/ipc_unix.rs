@@ -102,6 +102,18 @@ impl IpcConnector {
     }
   }
 
+  pub fn send_empty(event_sender: &mut mpsc::Sender<ActivityCmd>) -> Result<(), mpsc::SendError<ActivityCmd>> {
+    let activity = ActivityCmd {
+      args: Some(ActivityCmdArgs {
+        activity: None,
+        code: None,
+        pid: None,
+      }),
+      ..ActivityCmd::empty()
+    };
+    event_sender.send(activity)
+  }
+
   pub fn start(&mut self) {
     let mut clone = self.clone();
 
@@ -126,7 +138,11 @@ impl IpcConnector {
               match buffer.by_ref().take(4).read_exact(&mut packet_type) {
                 Ok(_) => (),
                 Err(err) => {
-                  log!("[IPC] Error reading packet type: {}", err);
+                  log!("[IPC] Error reading packet type: {}, socket likely closed", err);
+
+                  // Send empty activity
+                  Self::send_empty(&mut clone.event_sender)
+                    .unwrap_or_else(|e| log!("[IPC] Error sending empty activity: {}", e));
                   break;
                 }
               }
@@ -135,6 +151,10 @@ impl IpcConnector {
                 Ok(_) => (),
                 Err(err) => {
                   log!("[IPC] Error reading data size: {}", err);
+
+                  // Send empty activity
+                  Self::send_empty(&mut clone.event_sender)
+                    .unwrap_or_else(|e| log!("[IPC] Error sending empty activity: {}", e));
                   break;
                 }
               }
@@ -190,6 +210,10 @@ impl IpcConnector {
 
                   let Ok(mut activity_cmd) = serde_json::from_str::<ActivityCmd>(&message) else {
                     log!("[IPC] Error parsing activity command");
+
+                    // Send empty activity
+                    Self::send_empty(&mut clone.event_sender)
+                      .unwrap_or_else(|e| log!("[IPC] Error sending empty activity: {}", e));
                     continue;
                   };
 
@@ -197,6 +221,10 @@ impl IpcConnector {
                     Some(ref args) => args,
                     None => {
                       log!("[IPC] Invalid activity command, skipping");
+
+                      // Send empty activity
+                      Self::send_empty(&mut clone.event_sender)
+                        .unwrap_or_else(|e| log!("[IPC] Error sending empty activity: {}", e));
                       continue;
                     }
                   };
