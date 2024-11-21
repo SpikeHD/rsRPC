@@ -43,8 +43,19 @@ pub struct Activity {
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct TimeoutValue(i64);
+impl Default for TimeoutValue {
+  fn default() -> Self {
+    Self(0)
+  }
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Timestamps {
-  pub start: i64,
+  #[serde(default)]
+  pub start: Option<TimeoutValue>,
+  #[serde(default)]
+  pub end: Option<TimeoutValue>,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]

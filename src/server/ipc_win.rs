@@ -182,13 +182,18 @@ impl IpcConnector {
                     continue;
                   }
 
-                  let Ok(mut activity_cmd) = serde_json::from_str::<ActivityCmd>(&message) else {
-                    log!("[IPC] Error parsing activity command");
-                    
-                    // Send empty activity
-                    Self::send_empty(&mut clone.event_sender)
-                      .unwrap_or_else(|e| log!("[IPC] Error sending empty activity: {}", e));
-                    continue;
+                  log!("{}", message);
+
+                  let mut activity_cmd = match serde_json::from_str::<ActivityCmd>(&message) {
+                    Ok(activity_cmd) => activity_cmd,
+                    Err(err) => {
+                      log!("[IPC] Error parsing activity command: {}", err);
+                      
+                      // Send empty activity
+                      Self::send_empty(&mut clone.event_sender)
+                        .unwrap_or_else(|e| log!("[IPC] Error sending empty activity: {}", e));
+                      continue;
+                    }
                   };
 
                   let args = match activity_cmd.args {
