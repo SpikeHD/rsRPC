@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct DetectableActivity {
   #[serde(skip_serializing_if = "Option::is_none")]
   #[serde(rename = "bot_public")]
@@ -81,14 +81,14 @@ pub struct DetectableActivity {
   pub timestamp: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Developer {
   pub id: String,
   pub name: String,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Executable {
   #[serde(rename = "is_launcher")]
@@ -98,13 +98,13 @@ pub struct Executable {
   pub arguments: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Publisher {
   pub id: String,
   pub name: String,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ThirdPartySku {
   pub distributor: String,
   #[serde(skip_serializing_if = "Option::is_none")]

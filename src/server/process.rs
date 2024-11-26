@@ -11,8 +11,19 @@ use sysinfo::ProcessExt;
 use sysinfo::SystemExt;
 
 use crate::log;
+use crate::ProcessCallback;
 
 use super::super::DetectableActivity;
+
+#[derive(Default, Clone)]
+pub struct ProcessScanState {
+  pub obs_open: bool,
+}
+
+#[derive(Default)]
+pub struct ProcessEventListeners {
+  pub on_process_scan_complete: Option<Arc<Mutex<ProcessCallback>>>,
+}
 
 #[derive(Clone)]
 pub struct Exec {
@@ -35,6 +46,8 @@ pub struct ProcessServer {
 
   pub detectable_list: Vec<DetectableActivity>,
   pub event_sender: mpsc::Sender<ProcessDetectedEvent>,
+
+  event_listeners: Arc<Mutex<ProcessEventListeners>>,
 }
 
 unsafe impl Sync for ProcessServer {}
@@ -44,6 +57,7 @@ impl ProcessServer {
     detectable: Vec<DetectableActivity>,
     event_sender: mpsc::Sender<ProcessDetectedEvent>,
     thread_count: u16,
+    event_listeners: ProcessEventListeners,
   ) -> Self {
     ProcessServer {
       scanning: Arc::new(AtomicBool::new(false)),
@@ -53,6 +67,9 @@ impl ProcessServer {
       custom_detectables: Arc::new(Mutex::new(vec![])),
       detectable_list: detectable,
       event_sender,
+
+      // Event listeners
+      event_listeners: Arc::new(Mutex::new(event_listeners)),
     }
   }
 
@@ -214,6 +231,8 @@ impl ProcessServer {
       return Err("Scanning already in progress".into());
     }
 
+    let process_scan_state = Mutex::new(ProcessScanState::default());
+
     let mut detected_list: Vec<DetectableActivity> = (0..self.thread_count + 1)
       .into_par_iter()
       .flat_map(|i| {
@@ -238,6 +257,12 @@ impl ProcessServer {
                 for process in &processes {
                   // Process path (but consistent slashes, so we can compare properly)
                   let process_path = process.path.to_lowercase().replace('\\', "/");
+
+                  //log!("[Process Scanner] Process path: {}", process_path);
+
+                  if process_path.contains("obs64") || process_path.contains("streamlabs") {
+                    process_scan_state.lock().unwrap().obs_open = true;
+                  }
 
                   // If the exec_path is, in fact, a path, we can do a partial match
                   let found = if exec_path.contains('/') {
@@ -276,6 +301,16 @@ impl ProcessServer {
           .collect::<Vec<DetectableActivity>>()
       })
       .collect();
+
+    if let Some(callback) = self
+      .event_listeners
+      .lock()
+      .unwrap()
+      .on_process_scan_complete
+      .as_ref()
+    {
+      callback.lock().unwrap()(process_scan_state.lock().unwrap().clone());
+    }
 
     detected_list.shrink_to_fit();
 

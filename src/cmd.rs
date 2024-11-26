@@ -42,13 +42,8 @@ pub struct Activity {
   pub instance: Option<bool>,
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug, Default)]
 pub struct TimeoutValue(i64);
-impl Default for TimeoutValue {
-  fn default() -> Self {
-    Self(0)
-  }
-}
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Timestamps {

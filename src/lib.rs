@@ -1,7 +1,9 @@
 use detection::DetectableActivity;
 use serde_json::Value;
 use server::{
-  client_connector::ClientConnector, ipc::IpcConnector, process::ProcessServer,
+  client_connector::ClientConnector,
+  ipc::IpcConnector,
+  process::{ProcessEventListeners, ProcessScanState, ProcessServer},
   websocket::WebsocketConnector,
 };
 use std::{
@@ -14,6 +16,8 @@ pub mod detection;
 mod logger;
 mod server;
 mod url_params;
+
+pub type ProcessCallback = dyn FnMut(ProcessScanState) + Send + Sync;
 
 #[derive(Clone, Debug)]
 pub struct RPCConfig {
@@ -42,11 +46,12 @@ pub struct Connectors {
   ws_connector: Arc<Mutex<WebsocketConnector>>,
 }
 
-#[derive(Clone)]
 pub struct RPCServer {
   detectable: Arc<Mutex<Vec<DetectableActivity>>>,
   connectors: Option<Connectors>,
   config: RPCConfig,
+
+  on_process_scan_complete: Option<Arc<Mutex<ProcessCallback>>>,
 }
 
 impl RPCServer {
@@ -78,6 +83,9 @@ impl RPCServer {
       // Default to empty servers
       connectors: None,
       config,
+
+      // Event listeners
+      on_process_scan_complete: None,
     })
   }
 
@@ -155,6 +163,18 @@ impl RPCServer {
     }
   }
 
+  pub fn on_process_scan_complete(
+    &mut self,
+    callback: impl FnMut(ProcessScanState) + Send + Sync + 'static,
+  ) {
+    if self.connectors.is_some() {
+      log!("[RPC Server] Cannot set on_streamer_mode_should_toggle, connectors are already initialized");
+      return;
+    }
+
+    self.on_process_scan_complete = Some(Arc::new(Mutex::new(callback)));
+  }
+
   pub fn start(&mut self) {
     let (proc_event_sender, proc_event_receiver) = mpsc::channel();
     let (ipc_event_sender, ipc_event_receiver) = mpsc::channel();
@@ -165,6 +185,9 @@ impl RPCServer {
         self.detectable.lock().unwrap().to_vec(),
         proc_event_sender,
         8,
+        ProcessEventListeners {
+          on_process_scan_complete: self.on_process_scan_complete.clone(),
+        },
       ))),
       client_connector: Arc::new(Mutex::new(ClientConnector::new(
         1337,

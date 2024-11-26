@@ -102,7 +102,9 @@ impl IpcConnector {
     }
   }
 
-  pub fn send_empty(event_sender: &mut mpsc::Sender<ActivityCmd>) -> Result<(), mpsc::SendError<ActivityCmd>> {
+  pub fn send_empty(
+    event_sender: &mut mpsc::Sender<ActivityCmd>,
+  ) -> Result<(), mpsc::SendError<ActivityCmd>> {
     let activity = ActivityCmd {
       args: Some(ActivityCmdArgs {
         activity: None,
@@ -138,7 +140,10 @@ impl IpcConnector {
               match buffer.by_ref().take(4).read_exact(&mut packet_type) {
                 Ok(_) => (),
                 Err(err) => {
-                  log!("[IPC] Error reading packet type: {}, socket likely closed", err);
+                  log!(
+                    "[IPC] Error reading packet type: {}, socket likely closed",
+                    err
+                  );
 
                   // Send empty activity
                   Self::send_empty(&mut clone.event_sender)
