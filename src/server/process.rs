@@ -1,14 +1,13 @@
 use rayon::prelude::*;
+use sysinfo::UpdateKind;
+use std::path::Path;
 use std::sync::atomic::AtomicBool;
 use std::sync::mpsc;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
 use std::vec;
-
-// Sysinfo traits
-use sysinfo::ProcessExt;
-use sysinfo::SystemExt;
+use sysinfo::{ProcessRefreshKind, RefreshKind, System};
 
 use crate::log;
 use crate::ProcessCallback;
@@ -208,12 +207,13 @@ impl ProcessServer {
 
   pub fn process_list() -> Vec<Exec> {
     let mut processes = Vec::new();
-    let sys = sysinfo::System::new_all();
+    let sys =
+      System::new_with_specifics(RefreshKind::new().with_processes(ProcessRefreshKind::new().with_exe(UpdateKind::Always)));
 
     for proc in sys.processes() {
       processes.push(Exec {
         pid: proc.0.to_string().parse::<u64>().unwrap(),
-        path: proc.1.exe().display().to_string(),
+        path: proc.1.exe().unwrap_or(Path::new("")).display().to_string(),
       });
     }
 
