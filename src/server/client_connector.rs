@@ -104,13 +104,15 @@ impl ClientConnector {
 
     std::thread::spawn(move || {
       loop {
-        let ipc_activity = ipc_clone.ipc_event_rec.lock().unwrap().recv().unwrap();
+        let mut ipc_activity = ipc_clone.ipc_event_rec.lock().unwrap().recv().unwrap();
 
         // if there are no client, skip
         if ipc_clone.clients.lock().unwrap().len() == 0 {
           log!("[Client Connector] No clients connected, skipping");
           continue;
         }
+
+        ipc_activity.fix_timestamps();
 
         let args = match ipc_activity.args {
           Some(args) => args,
@@ -299,7 +301,7 @@ impl ClientConnector {
 
     std::thread::spawn(move || {
       loop {
-        let ws_event = ws_clone.ws_event_rec.lock().unwrap().recv().unwrap();
+        let mut ws_event = ws_clone.ws_event_rec.lock().unwrap().recv().unwrap();
 
         // if there are no clients, skip
         if ws_clone.clients.lock().unwrap().len() == 0 {
@@ -316,6 +318,8 @@ impl ClientConnector {
 
           continue;
         }
+
+        ws_event.fix_timestamps();
 
         let args = match ws_event.args {
           Some(ref args) => args,

@@ -22,6 +22,32 @@ impl ActivityCmd {
       nonce: "".to_string(),
     }
   }
+
+  pub fn fix_timestamps(&mut self) {
+    if let Some(timestamps) = self.args
+      .as_mut()
+      .and_then(|args| args.activity.as_mut())
+      .and_then(|activity| activity.timestamps.as_mut())
+    {
+      // convert starting timestamp
+      if let Some(start) = timestamps.start.as_mut() {
+        // convert timestamp
+        let s = chrono::DateTime::from_timestamp(start.0, 0);
+        if let Some(s) = s {
+          *start = TimeoutValue(s.timestamp_millis());
+        }
+      }
+
+      // convert ending timestamp
+      if let Some(end) = timestamps.end.as_mut() {
+        // convert timestamp
+        let s = chrono::DateTime::from_timestamp(end.0, 0);
+        if let Some(s) = s {
+          *end = TimeoutValue(s.timestamp_millis());
+        }
+      }
+    }
+  }
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
