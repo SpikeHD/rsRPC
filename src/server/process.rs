@@ -208,7 +208,7 @@ impl ProcessServer {
   pub fn process_list() -> Vec<Exec> {
     let mut processes = Vec::new();
     let sys =
-      System::new_with_specifics(RefreshKind::new().with_processes(ProcessRefreshKind::new().with_exe(UpdateKind::Always)));
+      System::new_with_specifics(RefreshKind::nothing().with_processes(ProcessRefreshKind::nothing().with_exe(UpdateKind::Always)));
 
     for proc in sys.processes() {
       processes.push(Exec {
