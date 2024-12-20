@@ -60,6 +60,8 @@ pub struct ActivityCmdArgs {
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Activity {
+  #[serde(rename = "type")]
+  pub r#type: Option<i64>,
   pub state: Option<String>,
   pub details: Option<String>,
   pub timestamps: Option<Timestamps>,
