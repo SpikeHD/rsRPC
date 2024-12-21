@@ -1,5 +1,4 @@
 use rayon::prelude::*;
-use sysinfo::UpdateKind;
 use std::path::Path;
 use std::sync::atomic::AtomicBool;
 use std::sync::mpsc;
@@ -7,6 +6,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
 use std::vec;
+use sysinfo::UpdateKind;
 use sysinfo::{ProcessRefreshKind, RefreshKind, System};
 
 use crate::log;
@@ -207,8 +207,10 @@ impl ProcessServer {
 
   pub fn process_list() -> Vec<Exec> {
     let mut processes = Vec::new();
-    let sys =
-      System::new_with_specifics(RefreshKind::nothing().with_processes(ProcessRefreshKind::nothing().with_exe(UpdateKind::Always)));
+    let sys = System::new_with_specifics(
+      RefreshKind::nothing()
+        .with_processes(ProcessRefreshKind::nothing().with_exe(UpdateKind::Always)),
+    );
 
     for proc in sys.processes() {
       processes.push(Exec {

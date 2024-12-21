@@ -5,7 +5,10 @@ use std::{
 
 use simple_websockets::{Event, EventHub, Message, Responder};
 
-use crate::{cmd::{ActivityCmd, ActivityPayload}, log};
+use crate::{
+  cmd::{ActivityCmd, ActivityPayload},
+  log,
+};
 
 use super::process::ProcessDetectedEvent;
 
@@ -136,19 +139,22 @@ impl ClientConnector {
         let activity = args.activity.as_mut();
 
         if let Some(activity) = activity {
-          activity.application_id= ipc_activity.application_id;
+          activity.application_id = ipc_activity.application_id;
 
           let payload = ActivityPayload {
             activity: Some(activity.clone()),
             pid: args.pid,
             socket_id: Some("0".to_string()),
           };
-  
+
           match serde_json::to_string(&payload) {
             Ok(payload) => {
-              log!("[Client Connector] Sending payload for IPC activity: {:?}", payload);
+              log!(
+                "[Client Connector] Sending payload for IPC activity: {:?}",
+                payload
+              );
               ipc_clone.send_data(payload)
-            },
+            }
             Err(err) => log!("[Client Connector] Error serializing IPC activity: {}", err),
           };
         } else {
@@ -291,19 +297,22 @@ impl ClientConnector {
         let activity = args.activity.as_mut();
 
         if let Some(activity) = activity {
-          activity.application_id= ws_event.application_id;
+          activity.application_id = ws_event.application_id;
 
           let payload = ActivityPayload {
             activity: Some(activity.clone()),
             pid: args.pid,
             socket_id: Some("0".to_string()),
           };
-  
+
           match serde_json::to_string(&payload) {
             Ok(payload) => {
-              log!("[Client Connector] Sending payload for IPC activity: {:?}", payload);
+              log!(
+                "[Client Connector] Sending payload for IPC activity: {:?}",
+                payload
+              );
               ws_clone.send_data(payload)
-            },
+            }
             Err(err) => log!("[Client Connector] Error serializing IPC activity: {}", err),
           };
         } else {

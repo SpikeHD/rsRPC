@@ -35,7 +35,8 @@ impl ActivityCmd {
   }
 
   pub fn fix_timestamps(&mut self) {
-    if let Some(timestamps) = self.args
+    if let Some(timestamps) = self
+      .args
       .as_mut()
       .and_then(|args| args.activity.as_mut())
       .and_then(|activity| activity.timestamps.as_mut())
@@ -138,11 +139,11 @@ pub struct Activity {
   pub metadata: Option<Metadata>,
 }
 
-#[skip_serializing_none] 
+#[skip_serializing_none]
 #[derive(Clone, Serialize, Deserialize, Debug, Default)]
 pub struct TimeoutValue(i64);
 
-#[skip_serializing_none] 
+#[skip_serializing_none]
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Timestamps {
   #[serde(default)]
@@ -151,7 +152,7 @@ pub struct Timestamps {
   pub end: Option<TimeoutValue>,
 }
 
-#[skip_serializing_none] 
+#[skip_serializing_none]
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Button {
   pub label: String,
