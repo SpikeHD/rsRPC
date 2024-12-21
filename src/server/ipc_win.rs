@@ -1,6 +1,7 @@
 use interprocess::local_socket::traits::ListenerExt;
 use interprocess::local_socket::{Listener, ListenerOptions, ToFsName};
-use interprocess::os::windows::local_socket::NamedPipe;
+use interprocess::os::windows::local_socket::{ListenerOptionsExt, NamedPipe};
+use interprocess::os::windows::security_descriptor::SecurityDescriptor;
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 
@@ -118,7 +119,7 @@ impl IpcConnector {
     };
 
     let listener =
-      ListenerOptions::new().name(pipe_path.clone().to_fs_name::<NamedPipe>().unwrap());
+      ListenerOptions::new().name(pipe_path.clone().to_fs_name::<NamedPipe>().unwrap()).security_descriptor(SecurityDescriptor::default());
 
     let socket = match listener.create_sync() {
       Ok(socket) => socket,
