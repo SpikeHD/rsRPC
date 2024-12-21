@@ -5,7 +5,7 @@ use std::{
 
 use simple_websockets::{Event, EventHub, Message, Responder};
 
-use crate::{cmd::ActivityCmd, log};
+use crate::{cmd::{ActivityCmd, ActivityPayload}, log};
 
 use super::process::ProcessDetectedEvent;
 
@@ -114,7 +114,7 @@ impl ClientConnector {
 
         ipc_activity.fix_timestamps();
 
-        let args = match ipc_activity.args {
+        let mut args = match ipc_activity.args {
           Some(args) => args,
           None => {
             log!("[Client Connector] Invalid activity command, skipping");
@@ -133,79 +133,27 @@ impl ClientConnector {
           continue;
         }
 
-        let activity = args.activity.as_ref();
-        let button_urls: Vec<String> = match activity {
-          Some(a) => a
-            .buttons
-            .as_deref()
-            .unwrap_or(&[])
-            .iter()
-            .map(|x| x.url.clone())
-            .collect(),
-          None => vec![],
-        };
-        let button_labels: Vec<String> = match activity {
-          Some(a) => a
-            .buttons
-            .as_deref()
-            .unwrap_or(&[])
-            .iter()
-            .map(|x| x.label.clone())
-            .collect(),
-          None => vec![],
-        };
+        let activity = args.activity.as_mut();
 
-        let payload = format!(
-          // I don't even know what half of these fields are for yet
-          r#"
-          {{
-            "activity": {{
-              "application_id": "{}",
-              "timestamps": {},
-              "assets": {},
-              "details": "{}",
-              "state": "{}",
-              "type": 0,
-              "buttons": {},
-              "metadata": {{
-                "button_urls": {}
-              }},
-              "flags": 0
-            }},
-            "pid": {},
-            "socketId": "0"
-          }}
-          "#,
-          ipc_activity.application_id.unwrap_or("".to_string()),
-          match activity {
-            Some(a) => match a.timestamps {
-              Some(ref t) => serde_json::to_string(&t).unwrap_or("".to_string()),
-              None => "{}".to_string(),
+        if let Some(activity) = activity {
+          activity.application_id= ipc_activity.application_id;
+
+          let payload = ActivityPayload {
+            activity: Some(activity.clone()),
+            pid: args.pid,
+            socket_id: Some("0".to_string()),
+          };
+  
+          match serde_json::to_string(&payload) {
+            Ok(payload) => {
+              log!("[Client Connector] Sending payload for IPC activity: {:?}", payload);
+              ipc_clone.send_data(payload)
             },
-            None => "{}".to_string(),
-          },
-          match activity {
-            Some(a) => serde_json::to_string(&a.assets).unwrap_or("{}".to_string()),
-            None => "{}".to_string(),
-          },
-          match activity {
-            Some(a) => a.details.as_deref().unwrap_or(""),
-            None => "",
-          },
-          match activity {
-            Some(a) => a.state.as_deref().unwrap_or(""),
-            None => "",
-          },
-          serde_json::to_string(&button_labels).unwrap_or("".to_string()),
-          serde_json::to_string(&button_urls).unwrap_or("".to_string()),
-          args.pid.unwrap_or_default(),
-        );
-
-        log!("[Client Connector] {:?}", payload);
-
-        log!("[Client Connector] Sending payload for IPC activity");
-
-        ipc_clone.send_data(payload);
+            Err(err) => log!("[Client Connector] Error serializing IPC activity: {}", err),
+          };
+        } else {
+          log!("[Client Connector] Invalid activity command, skipping");
+        }
       }
     });
 
@@ -321,20 +269,46 @@ impl ClientConnector {
 
         ws_event.fix_timestamps();
 
-        let args = match ws_event.args {
-          Some(ref args) => args,
+        let mut args = match ws_event.args {
+          Some(args) => args,
           None => {
             log!("[Client Connector] Invalid activity command, skipping");
             continue;
           }
         };
 
-        // Do the whole activity thing
-        let payload = serde_json::to_string(&args).unwrap();
+        if args.activity.is_none() {
+          // Send empty payload
+          let payload = empty_activity(ws_clone.last_pid.unwrap_or_default(), "0".to_string());
 
-        log!("[Client Connector] Sending payload for WS activity");
+          log!("[Client Connector] Sending empty payload");
 
-        ws_clone.send_data(payload);
+          ws_clone.send_data(payload);
+
+          continue;
+        }
+
+        let activity = args.activity.as_mut();
+
+        if let Some(activity) = activity {
+          activity.application_id= ws_event.application_id;
+
+          let payload = ActivityPayload {
+            activity: Some(activity.clone()),
+            pid: args.pid,
+            socket_id: Some("0".to_string()),
+          };
+  
+          match serde_json::to_string(&payload) {
+            Ok(payload) => {
+              log!("[Client Connector] Sending payload for IPC activity: {:?}", payload);
+              ws_clone.send_data(payload)
+            },
+            Err(err) => log!("[Client Connector] Error serializing IPC activity: {}", err),
+          };
+        } else {
+          log!("[Client Connector] Invalid activity command, skipping");
+        }
       }
     });
   }
