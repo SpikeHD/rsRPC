@@ -126,8 +126,9 @@ impl ClientConnector {
         };
 
         if args.activity.is_none() {
+          let pid = args.pid.unwrap_or_default();
           // Send empty payload
-          let payload = empty_activity(ipc_clone.last_pid.unwrap_or_default(), "0".to_string());
+          let payload = empty_activity(pid, pid.to_string());
 
           log!("[Client Connector] Sending empty payload");
 
@@ -144,7 +145,7 @@ impl ClientConnector {
           let payload = ActivityPayload {
             activity: Some(activity.clone()),
             pid: args.pid,
-            socket_id: Some("0".to_string()),
+            socket_id: Some(args.pid.unwrap_or(0).to_string()),
           };
 
           match serde_json::to_string(&payload) {
@@ -284,8 +285,9 @@ impl ClientConnector {
         };
 
         if args.activity.is_none() {
+          let pid = args.pid.unwrap_or_default();
           // Send empty payload
-          let payload = empty_activity(ws_clone.last_pid.unwrap_or_default(), "0".to_string());
+          let payload = empty_activity(pid, pid.to_string());
 
           log!("[Client Connector] Sending empty payload");
 
@@ -302,7 +304,7 @@ impl ClientConnector {
           let payload = ActivityPayload {
             activity: Some(activity.clone()),
             pid: args.pid,
-            socket_id: Some("0".to_string()),
+            socket_id: Some(args.pid.unwrap_or(0).to_string()),
           };
 
           match serde_json::to_string(&payload) {

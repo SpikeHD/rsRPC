@@ -77,12 +77,15 @@ pub fn encode(r_type: PacketType, data: String) -> Vec<u8> {
 #[allow(clippy::result_large_err)]
 pub fn send_empty(
   event_sender: &mut mpsc::Sender<ActivityCmd>,
+  pid: u64,
 ) -> Result<(), mpsc::SendError<ActivityCmd>> {
+  log!("[IPC] Sending empty activity");
+
   let activity = ActivityCmd {
     args: Some(ActivityCmdArgs {
       activity: None,
       code: None,
-      pid: None,
+      pid: Some(pid),
     }),
     ..ActivityCmd::empty()
   };
@@ -91,6 +94,7 @@ pub fn send_empty(
 
 pub fn handle_stream(ipc: &mut dyn IpcFacilitator, stream: &mut Stream) {
   loop {
+    let current_pid = ipc.pid();
     // Read into buffer
     let mut buffer = std::io::BufReader::new(&mut *stream);
 
@@ -107,7 +111,7 @@ pub fn handle_stream(ipc: &mut dyn IpcFacilitator, stream: &mut Stream) {
         );
 
         // Send empty activity
-        send_empty(ipc.event_sender())
+        send_empty(ipc.event_sender(), current_pid)
           .unwrap_or_else(|e| log!("[IPC] Error sending empty activity: {}", e));
         break;
       }
@@ -119,7 +123,7 @@ pub fn handle_stream(ipc: &mut dyn IpcFacilitator, stream: &mut Stream) {
         log!("[IPC] Error reading data size: {}", err);
 
         // Send empty activity
-        send_empty(ipc.event_sender())
+        send_empty(ipc.event_sender(), current_pid)
           .unwrap_or_else(|e| log!("[IPC] Error sending empty activity: {}", e));
         break;
       }
@@ -178,7 +182,7 @@ pub fn handle_stream(ipc: &mut dyn IpcFacilitator, stream: &mut Stream) {
           log!("[IPC] Error parsing activity command");
 
           // Send empty activity
-          send_empty(ipc.event_sender())
+          send_empty(ipc.event_sender(), current_pid)
             .unwrap_or_else(|e| log!("[IPC] Error sending empty activity: {}", e));
           continue;
         };
@@ -189,7 +193,7 @@ pub fn handle_stream(ipc: &mut dyn IpcFacilitator, stream: &mut Stream) {
             log!("[IPC] Invalid activity command, skipping");
 
             // Send empty activity
-            send_empty(ipc.event_sender())
+            send_empty(ipc.event_sender(), current_pid)
               .unwrap_or_else(|e| log!("[IPC] Error sending empty activity: {}", e));
             continue;
           }
