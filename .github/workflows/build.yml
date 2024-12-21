@@ -143,6 +143,18 @@ jobs:
         with:
           path: artifacts
 
+      - name: Zip each artifact and cleanup
+        run: |
+          set -e
+          BASE_DIR="artifacts"
+            FOLDER_NAME=$(basename "$dir")
+            ZIP_FILE="${FOLDER_NAME}.zip"
+            echo "Zipping $dir into $ZIP_FILE..."
+            zip -j -r "$ZIP_FILE" "$dir"
+            echo "Deleting $dir..."
+            rm -rf "$dir"
+          done
+
       - name: Create release using all artifacts
         uses: softprops/action-gh-release@v2
         if: github.event_name != 'schedule'
