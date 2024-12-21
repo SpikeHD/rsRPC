@@ -74,6 +74,7 @@ pub fn encode(r_type: PacketType, data: String) -> Vec<u8> {
   buffer
 }
 
+#[allow(clippy::result_large_err)]
 pub fn send_empty(
   event_sender: &mut mpsc::Sender<ActivityCmd>,
 ) -> Result<(), mpsc::SendError<ActivityCmd>> {

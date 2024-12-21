@@ -1,6 +1,6 @@
 use interprocess::local_socket::traits::ListenerExt;
+use interprocess::local_socket::Listener;
 use interprocess::local_socket::{GenericFilePath, ListenerOptions, ToFsName};
-use  interprocess::local_socket::Listener;
 use std::env;
 use std::sync::{mpsc, Arc, Mutex};
 
