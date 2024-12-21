@@ -1,6 +1,6 @@
 [package]
 name = "rsrpc"
-version = "0.21.1"
+version = "0.22.0"
 edition = "2018"
 authors = ["spikehd"]
 
@@ -14,16 +14,16 @@ clap = { version = "4.5", features = ["derive"], optional = true }
 reqwest = { version = "0.12", default-features = false, optional = true, features = ["blocking", "default-tls"] }
 
 sysinfo = "0.33"
-serde = { version = "1.0.166", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-serde_with = "3.11.0"
+serde_with = "3.11"
 simple-websockets = { git = "https://github.com/SpikeHD/simple-websockets.git", branch = "master" }
-chrono = "0.4.13"
-rayon = "1.7.0"
+chrono = "0.4"
+rayon = "1.7"
 
 [target.'cfg(target_os = "windows")'.dependencies]
-winapi = { version = "0.3.9", features = ["namedpipeapi", "winbase"] }
-interprocess = "2.2.1"
+winapi = { version = "0.3", features = ["namedpipeapi", "winbase"] }
+interprocess = "2.2"
 
 [[bin]]
 name = "rsrpc"
