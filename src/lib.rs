@@ -3,6 +3,7 @@ use serde_json::Value;
 use server::{
   client_connector::ClientConnector,
   ipc::IpcConnector,
+  ipc_utils::IpcFacilitator,
   process::{ProcessEventListeners, ProcessScanState, ProcessServer},
   websocket::WebsocketConnector,
 };

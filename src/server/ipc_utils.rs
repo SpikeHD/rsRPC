@@ -1,3 +1,36 @@
+use std::{
+  io::{Read, Write},
+  sync::mpsc,
+};
+
+use interprocess::local_socket::Stream;
+
+use crate::{
+  cmd::{ActivityCmd, ActivityCmdArgs},
+  log,
+  server::utils,
+};
+
+pub trait IpcFacilitator {
+  fn handshake(&self) -> bool;
+  fn set_handshake(&mut self, handshake: bool);
+
+  fn client_id(&self) -> String;
+  fn set_client_id(&mut self, client_id: String);
+
+  fn pid(&self) -> u64;
+  fn set_pid(&mut self, pid: u64);
+
+  fn nonce(&self) -> String;
+  fn set_nonce(&mut self, nonce: String);
+
+  fn recreate_socket(&mut self);
+
+  fn start(&mut self);
+
+  fn event_sender(&mut self) -> &mut mpsc::Sender<ActivityCmd>;
+}
+
 #[derive(Debug)]
 pub enum PacketType {
   Handshake,
@@ -39,4 +72,183 @@ pub fn encode(r_type: PacketType, data: String) -> Vec<u8> {
   buffer.extend_from_slice(data.as_bytes());
 
   buffer
+}
+
+pub fn send_empty(
+  event_sender: &mut mpsc::Sender<ActivityCmd>,
+) -> Result<(), mpsc::SendError<ActivityCmd>> {
+  let activity = ActivityCmd {
+    args: Some(ActivityCmdArgs {
+      activity: None,
+      code: None,
+      pid: None,
+    }),
+    ..ActivityCmd::empty()
+  };
+  event_sender.send(activity)
+}
+
+pub fn handle_stream(ipc: &mut dyn IpcFacilitator, stream: &mut Stream) {
+  loop {
+    // Read into buffer
+    let mut buffer = std::io::BufReader::new(&mut *stream);
+
+    // Read the packet type and size
+    let mut packet_type = [0; 4];
+    let mut data_size = [0; 4];
+
+    match buffer.by_ref().take(4).read_exact(&mut packet_type) {
+      Ok(_) => (),
+      Err(err) => {
+        log!(
+          "[IPC] Error reading packet type: {}, socket likely closed",
+          err
+        );
+
+        // Send empty activity
+        send_empty(ipc.event_sender())
+          .unwrap_or_else(|e| log!("[IPC] Error sending empty activity: {}", e));
+        break;
+      }
+    }
+
+    match buffer.by_ref().take(4).read_exact(&mut data_size) {
+      Ok(_) => (),
+      Err(err) => {
+        log!("[IPC] Error reading data size: {}", err);
+
+        // Send empty activity
+        send_empty(ipc.event_sender())
+          .unwrap_or_else(|e| log!("[IPC] Error sending empty activity: {}", e));
+        break;
+      }
+    }
+
+    // Convert the rest of the buffer to a string
+    let mut message = String::new();
+
+    match buffer
+      .by_ref()
+      .take(u32::from_le_bytes(data_size) as u64)
+      .read_to_string(&mut message)
+    {
+      Ok(_) => (),
+      Err(err) => {
+        log!("[IPC] Error reading data: {}", err);
+        break;
+      }
+    }
+
+    let r_type = PacketType::from_u32(u32::from_le_bytes(packet_type));
+
+    log!("[IPC] Recieved message: {}", message);
+
+    match r_type {
+      PacketType::Handshake => {
+        log!("[IPC] Recieved handshake");
+        let Ok(data) = serde_json::from_str::<Handshake>(&message) else {
+          log!("[IPC] Error parsing handshake");
+          continue;
+        };
+
+        if data.v != 1 {
+          log!("[IPC] Invalid version: {}", data.v);
+          continue;
+        }
+
+        ipc.set_handshake(true);
+        ipc.set_client_id(data.client_id);
+
+        // Send CONNECTION_RESPONSE
+        let resp = encode(PacketType::Frame, utils::CONNECTION_REPONSE.to_string());
+
+        match stream.write_all(&resp) {
+          Ok(_) => (),
+          Err(err) => log!("[IPC] Error sending connection response: {}", err),
+        }
+      }
+      PacketType::Frame => {
+        if !ipc.handshake() {
+          log!("[IPC] Did not handshake yet, ignoring frame");
+          continue;
+        }
+
+        let Ok(mut activity_cmd) = serde_json::from_str::<ActivityCmd>(&message) else {
+          log!("[IPC] Error parsing activity command");
+
+          // Send empty activity
+          send_empty(ipc.event_sender())
+            .unwrap_or_else(|e| log!("[IPC] Error sending empty activity: {}", e));
+          continue;
+        };
+
+        let args = match activity_cmd.args {
+          Some(ref args) => args,
+          None => {
+            log!("[IPC] Invalid activity command, skipping");
+
+            // Send empty activity
+            send_empty(ipc.event_sender())
+              .unwrap_or_else(|e| log!("[IPC] Error sending empty activity: {}", e));
+            continue;
+          }
+        };
+
+        activity_cmd.application_id = Some(ipc.client_id());
+
+        ipc.set_pid(args.pid.unwrap_or_default());
+        ipc.set_nonce(activity_cmd.nonce.clone());
+
+        match ipc.event_sender().send(activity_cmd) {
+          Ok(_) => (),
+          Err(err) => log!("[IPC] Error sending activity command: {}", err),
+        }
+      }
+      PacketType::Close => {
+        log!("[IPC] Recieved close");
+
+        // Send message with an empty activity
+        let activity_cmd = ActivityCmd {
+          application_id: Some(ipc.client_id()),
+          cmd: "SET_ACTIVITY".to_string(),
+          data: None,
+          evt: None,
+          args: Some(ActivityCmdArgs {
+            pid: Some(ipc.pid()),
+            activity: None,
+            code: None,
+          }),
+          nonce: ipc.nonce(),
+        };
+
+        match ipc.event_sender().send(activity_cmd) {
+          Ok(_) => (),
+          Err(err) => log!("[IPC] Error sending activity command: {}", err),
+        }
+
+        // reset values
+        ipc.set_handshake(false);
+        ipc.set_client_id("".to_string());
+        ipc.set_pid(0);
+
+        ipc.recreate_socket();
+
+        break;
+      }
+      PacketType::Ping => {
+        log!("[IPC] Recieved ping");
+
+        // Send a pong
+        let resp = encode(PacketType::Pong, message);
+
+        match stream.write_all(&resp) {
+          Ok(_) => (),
+          Err(err) => log!("[IPC] Error sending pong: {}", err),
+        };
+      }
+      PacketType::Pong => {
+        log!("[IPC] Recieved pong");
+      }
+    }
+  }
 }
