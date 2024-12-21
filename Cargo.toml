@@ -20,10 +20,10 @@ serde_with = "3.11"
 simple-websockets = { git = "https://github.com/SpikeHD/simple-websockets.git", branch = "master" }
 chrono = "0.4"
 rayon = "1.7"
+interprocess = "2.2"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["namedpipeapi", "winbase"] }
-interprocess = "2.2"
 
 [[bin]]
 name = "rsrpc"

@@ -1,16 +1,13 @@
+use interprocess::local_socket::traits::ListenerExt;
+use interprocess::local_socket::{GenericFilePath, ListenerOptions, ToFsName};
+use  interprocess::local_socket::Listener;
 use std::env;
-use std::io::{Read, Write};
-use std::os::unix::net::UnixListener;
 use std::sync::{mpsc, Arc, Mutex};
-use std::time::Duration;
 
-use crate::cmd::{ActivityCmd, ActivityCmdArgs};
+use crate::cmd::ActivityCmd;
 use crate::log;
-use crate::server::utils;
 
-use super::ipc_utils::encode;
-use super::ipc_utils::Handshake;
-use super::ipc_utils::PacketType;
+use super::ipc_utils::{handle_stream, IpcFacilitator};
 
 fn get_socket_path() -> String {
   let xdg_runtime_dir = env::var("XDG_RUNTIME_DIR").unwrap_or_default();
@@ -23,8 +20,10 @@ fn get_socket_path() -> String {
     tmpdir
   } else if !tmp.is_empty() {
     tmp
-  } else {
+  } else if !temp.is_empty() {
     temp
+  } else {
+    "/tmp".to_string()
   };
 
   // Append a / to the temp dir if it doesn't have one
@@ -82,17 +81,9 @@ impl IpcFacilitator for IpcConnector {
   }
 
   fn recreate_socket(&mut self) {
-    // Delete and recreate socket
-    let mut socket = clone.socket.lock().unwrap();
-
-    let socket_addr = socket.local_addr().unwrap();
-    let path = socket_addr
-      .as_pathname()
-      .unwrap_or(std::path::Path::new(""));
-
-    std::fs::remove_file(path).unwrap_or_default();
-
-    *socket = Self::create_socket(None);
+    // Delete the socket, then create a new one
+    let socket = Self::create_socket(None);
+    *self.socket.lock().unwrap() = socket;
   }
 
   /**
@@ -112,6 +103,7 @@ impl IpcFacilitator for IpcConnector {
 
         match stream {
           Ok(mut stream) => {
+            log!("[IPC] Incoming stream...");
             std::thread::spawn(move || handle_stream(&mut clone, &mut stream));
           }
           Err(err) => {
@@ -146,39 +138,33 @@ impl IpcConnector {
   }
 
   /**
-   * Close and delete the socket
-   */
-  pub fn _close(&mut self) {
-    let socket_addr = self.socket.lock().unwrap().local_addr().unwrap();
-    let path = socket_addr
-      .as_pathname()
-      .unwrap_or(std::path::Path::new(""));
-    std::fs::remove_file(path).unwrap_or_default();
-  }
-
-  /**
    * ACTUALLY create a socket, and return the handle
    */
-  fn create_socket(tries: Option<u8>) -> UnixListener {
+  fn create_socket(tries: Option<u8>) -> Listener {
     let socket_path = get_socket_path();
     let tries = tries.unwrap_or(0);
+    let socket_path = format!("{}-{}", socket_path, tries);
 
-    log!("[IPC] Creating socket: {}-{}", socket_path, tries);
+    log!("[IPC] Creating socket: {}", socket_path);
 
-    let socket = UnixListener::bind(format!("{}-{}", socket_path, tries));
+    let listener =
+      ListenerOptions::new().name(socket_path.clone().to_fs_name::<GenericFilePath>().unwrap());
 
-    match socket {
+    let socket = match listener.create_sync() {
       Ok(socket) => socket,
       Err(err) => {
-        if tries >= 10 {
-          log!("[IPC] Could not create IPC socket after 10 tries: {}", err);
-          panic!("Could not create IPC socket after 10 tries");
+        log!("[IPC] Failed to create IPC socket: {}", err);
+
+        if tries < 9 {
+          return Self::create_socket(Some(tries + 1));
+        } else {
+          panic!("[IPC] Failed to create socket: {}", err);
         }
-
-        std::thread::sleep(Duration::from_millis(500));
-
-        Self::create_socket(Some(tries + 1))
       }
-    }
+    };
+
+    log!("[IPC] Created IPC socket: {}", socket_path);
+
+    socket
   }
 }

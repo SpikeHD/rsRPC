@@ -75,6 +75,7 @@ impl IpcFacilitator for IpcConnector {
 
         match stream {
           Ok(mut stream) => {
+            log!("[IPC] Incoming stream...");
             std::thread::spawn(move || handle_stream(&mut clone, &mut stream));
           }
           Err(err) => {
