@@ -147,6 +147,7 @@ jobs:
         run: |
           set -e
           BASE_DIR="artifacts"
+          for dir in "$BASE_DIR"/*; do
             FOLDER_NAME=$(basename "$dir")
             ZIP_FILE="${FOLDER_NAME}.zip"
             echo "Zipping $dir into $ZIP_FILE..."
