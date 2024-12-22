@@ -118,8 +118,9 @@ impl IpcConnector {
       None => format!("{}-{}", pipe_path, 0),
     };
 
-    let listener =
-      ListenerOptions::new().name(pipe_path.clone().to_fs_name::<NamedPipe>().unwrap()).security_descriptor(SecurityDescriptor::default());
+    let listener = ListenerOptions::new()
+      .name(pipe_path.clone().to_fs_name::<NamedPipe>().unwrap())
+      .security_descriptor(SecurityDescriptor::default());
 
     let socket = match listener.create_sync() {
       Ok(socket) => socket,
