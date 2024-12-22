@@ -41,21 +41,25 @@ impl ActivityCmd {
       .and_then(|args| args.activity.as_mut())
       .and_then(|activity| activity.timestamps.as_mut())
     {
+      let cur = chrono::Utc::now().timestamp() + (100 * 365 * 24 * 3600);
+
       // convert starting timestamp
       if let Some(start) = timestamps.start.as_mut() {
-        // convert timestamp
-        let s = chrono::DateTime::from_timestamp(start.0, 0);
-        if let Some(s) = s {
-          *start = TimeoutValue(s.timestamp_millis());
+        // convert timestamp if in seconds
+        if start.0 > cur {
+          *start = TimeoutValue(start.0);
+        } else {
+          *start = TimeoutValue(start.0 * 1000);
         }
       }
 
       // convert ending timestamp
       if let Some(end) = timestamps.end.as_mut() {
-        // convert timestamp
-        let s = chrono::DateTime::from_timestamp(end.0, 0);
-        if let Some(s) = s {
-          *end = TimeoutValue(s.timestamp_millis());
+        // convert timestamp if in seconds
+        if end.0 > cur {
+          *end = TimeoutValue(end.0);
+        } else {
+          *end = TimeoutValue(end.0 * 1000);
         }
       }
     }
@@ -119,7 +123,8 @@ pub struct Metadata {
 pub struct Activity {
   pub id: Option<String>,
   pub name: Option<String>,
-  pub r#type: Option<u32>,
+  #[serde(default)]
+  pub r#type: u32,
   pub url: Option<String>,
   pub created_at: Option<u64>,
   pub session_id: Option<String>,
@@ -130,8 +135,8 @@ pub struct Activity {
   pub details: Option<String>,
   pub state: Option<String>,
   pub sync_id: Option<String>,
-  pub flags: Option<u32>,
-  pub buttons: Option<Vec<Button>>,
+  #[serde(default)]
+  pub flags: u32,
   pub emoji: Option<Emoji>,
   pub party: Option<Party>,
   pub assets: Option<Assets>,
