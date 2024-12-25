@@ -135,6 +135,7 @@ pub struct Activity {
   pub details: Option<String>,
   pub state: Option<String>,
   pub sync_id: Option<String>,
+  pub instance: Option<bool>,
   #[serde(default)]
   pub flags: u32,
   pub emoji: Option<Emoji>,
