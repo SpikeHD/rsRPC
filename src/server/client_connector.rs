@@ -115,7 +115,7 @@ impl ClientConnector {
           continue;
         }
 
-        ipc_activity.fix_timestamps();
+        ipc_activity.fix();
 
         let mut args = match ipc_activity.args {
           Some(args) => args,
@@ -274,7 +274,7 @@ impl ClientConnector {
           continue;
         }
 
-        ws_event.fix_timestamps();
+        ws_event.fix();
 
         let mut args = match ws_event.args {
           Some(args) => args,

@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use serde_with::skip_serializing_none;
 use std::collections::HashMap;
 
@@ -34,6 +35,12 @@ impl ActivityCmd {
     }
   }
 
+  pub fn fix(&mut self) {
+    self.fix_timestamps();
+    self.fix_buttons();
+    self.fix_flags();
+  }
+
   pub fn fix_timestamps(&mut self) {
     if let Some(timestamps) = self
       .args
@@ -62,6 +69,49 @@ impl ActivityCmd {
           *end = TimeoutValue(end.0 * 1000);
         }
       }
+    }
+  }
+
+  pub fn fix_buttons(&mut self) {
+    // If `buttons` are an array of objects, we need to map the labels to `buttons` (as a string array) and the urls to `metadata.button_urls` (as an array of strings)
+    if let Some(activity) = self
+      .args
+      .as_mut()
+      .and_then(|args| args.activity.as_mut())
+    {
+      if let Some(buttons) = activity.buttons.as_mut() {
+        let mut button_urls: Vec<String> = vec![];
+        let mut button_labels: Vec<Value> = vec![];
+        
+        for b in buttons {
+          if let Some(label) = b.get("label") {
+            // Unless the provider of the actvity REALLY screwed up, we can safely assume this is a string
+            button_labels.push(label.clone());
+          }
+          if let Some(url) = b.get("url") {
+            button_urls.push(url.as_str().unwrap_or("").to_string());
+          }
+        }
+
+        activity.metadata = Some(Metadata {
+          button_urls: Some(button_urls),
+          ..activity.metadata.clone().unwrap_or_default()
+        });
+
+        activity.buttons = Some(button_labels);
+      }
+    }
+  }
+
+  pub fn fix_flags(&mut self) {
+    if let Some(activity) = self
+      .args
+      .as_mut()
+      .and_then(|args| args.activity.as_mut())
+    {
+      if activity.instance.unwrap_or(false) && activity.flags.is_none() {
+        activity.flags = Some(1);
+      } 
     }
   }
 }
@@ -123,6 +173,7 @@ pub struct Metadata {
 pub struct Activity {
   pub id: Option<String>,
   pub name: Option<String>,
+  pub buttons: Option<Vec<Value>>,
   #[serde(default)]
   pub r#type: u32,
   pub url: Option<String>,
@@ -136,8 +187,7 @@ pub struct Activity {
   pub state: Option<String>,
   pub sync_id: Option<String>,
   pub instance: Option<bool>,
-  #[serde(default)]
-  pub flags: u32,
+  pub flags: Option<u32>,
   pub emoji: Option<Emoji>,
   pub party: Option<Party>,
   pub assets: Option<Assets>,
