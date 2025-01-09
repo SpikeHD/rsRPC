@@ -1,11 +1,9 @@
+use clap::{command, Parser};
 use rsrpc;
+use rsrpc::RPCConfig;
 use std::path::PathBuf;
 
-#[cfg(feature = "binary")]
 pub fn main() {
-  use clap::{command, Parser};
-  use rsrpc::RPCConfig;
-
   #[derive(Parser, Debug)]
   #[command(author, version, about, long_about = None)]
   struct Args {
@@ -32,10 +30,4 @@ pub fn main() {
   loop {
     std::thread::sleep(std::time::Duration::from_millis(10));
   }
-}
-
-#[cfg(not(feature = "binary"))]
-pub fn main() {
-  println!("This binary was not compiled with the binary feature enabled.");
-  println!("Please compile with \"--features binary\" to enable the binary.");
 }

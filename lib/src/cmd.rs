@@ -74,15 +74,11 @@ impl ActivityCmd {
 
   pub fn fix_buttons(&mut self) {
     // If `buttons` are an array of objects, we need to map the labels to `buttons` (as a string array) and the urls to `metadata.button_urls` (as an array of strings)
-    if let Some(activity) = self
-      .args
-      .as_mut()
-      .and_then(|args| args.activity.as_mut())
-    {
+    if let Some(activity) = self.args.as_mut().and_then(|args| args.activity.as_mut()) {
       if let Some(buttons) = activity.buttons.as_mut() {
         let mut button_urls: Vec<String> = vec![];
         let mut button_labels: Vec<Value> = vec![];
-        
+
         for b in buttons {
           if let Some(label) = b.get("label") {
             // Unless the provider of the actvity REALLY screwed up, we can safely assume this is a string
@@ -104,14 +100,10 @@ impl ActivityCmd {
   }
 
   pub fn fix_flags(&mut self) {
-    if let Some(activity) = self
-      .args
-      .as_mut()
-      .and_then(|args| args.activity.as_mut())
-    {
+    if let Some(activity) = self.args.as_mut().and_then(|args| args.activity.as_mut()) {
       if activity.instance.unwrap_or(false) && activity.flags.is_none() {
         activity.flags = Some(1);
-      } 
+      }
     }
   }
 }
