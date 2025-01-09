@@ -6,16 +6,17 @@
     <img src="https://img.shields.io/github/actions/workflow/status/SpikeHD/rsRPC/code_quality.yml?label=code quality" />
     <img src="https://img.shields.io/github/repo-size/SpikeHD/rsRPC" />
   </div>
-  <p>Discord RPC server binary and library, lovingly written in Rust using the core research from <a href="https://github.com/OpenAsar/arRPC">arRPC</a> <sup>(love you guys 💕)</sup></p>
+  <p>Alternative Discord RPC server CLI tool and Rust library, inspired by <a href="https://github.com/OpenAsar/arRPC">arRPC</a></p>
 </div>
 
 # Features
 
-* Basic process detection
+* Process detection
 * IPC/Socket-based RPC detection
 * Websocket-based RPC detection
-* Add new processes on the fly
-* Manually trigger scans
+* `INVITE_BROWSER` support
+* Adding new processes on the fly
+* Manually triggering scans
 
 # Building
 
@@ -27,15 +28,13 @@
 
 1. Download a binary from [releases](https://github.com/SpikeHD/rsRPC/releases), [GitHub Actions](https://www.github.com/SpikeHD/rsRPC/actions) or build it yourself below!
 2. If you just want to use the default detectable list, just run the binary!
-3. If you want to use your own detectable list, place a `detectable.json` file in the same directory as the binary (you can use [the arRPC one](https://raw.githubusercontent.com/OpenAsar/arrpc/main/src/process/detectable.json) as an example), then run the binary with `./rsrpc -d ./detectable.json`
+3. If you want to use your own detectable list, place a `detectable.json` file in the same directory as the binary (you can use [the arRPC one](https://raw.githubusercontent.com/OpenAsar/arrpc/main/src/process/detectable.json) as an example), then run the binary with `./rsrpc-cli -d ./detectable.json`
 
 ## Building the binary
 
 1. Clone the repository
-2. Place a `detectable.json` file in the root folder (you can use [the arRPC one](https://raw.githubusercontent.com/OpenAsar/arrpc/main/src/process/detectable.json) as an example)
-3. If you wanna try it out, run `cargo run --features binary -- -d ./detectable.json` in the root directory
-4. If you want to make a build, run `cargo build --features binary` in the root directory
-5. The binary will be in `target/release/rsrpc`
+2. `cargo build -p rsrpc-cli --release`
+3. Your file will be in `target/release/`
 
 ## Using as a library
 
@@ -49,21 +48,21 @@ rsrpc = { git = "https://www.github.com/SpikeHD/rsRPC", tag = "VERSION_NUMBER_HE
 2. Use the library in your code:
 
 ```rust
-use rsrpc::RPCServer;
+use rsrpc::{RPCServer, RPCConfig};
 
 fn main() {
-  let mut server = RPCServer::from_file("./detectable.json");
+  let mut server = RPCServer::from_file("./detectable.json", RPCConfig::default());
   server.start();
 }
 ```
 
 You can also grab the `detectable.json` programmatically and pass it via string:
 ```rust
-fn main() {
-  let detectable = reqwest::blocking::get("https://raw.githubusercontent.com/OpenAsar/arrpc/main/src/process/detectable.json").unwrap().text().unwrap();
+use rsrpc::{RPCServer, RPCConfig};
 
-  // This accepts both a `&str` or a `String`
-  let mut server = RPCServer::from_json_str(detectable);
+fn main() {
+  let detectable = reqwest::blocking::get("https://raw.githubusercontent.com/OpenAsar/arrpc/main/src/process/detectable.json")?.text()?;
+  let mut server = RPCServer::from_json_str(detectable, RPCConfig::default());
 
   server.start();
 }
