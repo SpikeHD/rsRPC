@@ -4,4 +4,4 @@ resolver = "2"
 
 [profile.release]
 strip = "debuginfo"
-lto = true
+lto = false

@@ -169,7 +169,7 @@ impl RPCServer {
     callback: impl FnMut(ProcessScanState) + Send + Sync + 'static,
   ) {
     if self.connectors.is_some() {
-      log!("[RPC Server] Cannot set on_streamer_mode_should_toggle, connectors are already initialized");
+      log!("[RPC Server] Cannot set on_process_scan_complete, connectors are already initialized");
       return;
     }
 
