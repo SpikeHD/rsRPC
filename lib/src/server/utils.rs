@@ -1,7 +1,3 @@
-use std::{fs::{self, DirEntry}, io::Error};
-
-use crate::log;
-
 pub static CONNECTION_REPONSE: &str = r#"
 {
   "cmd": "DISPATCH",

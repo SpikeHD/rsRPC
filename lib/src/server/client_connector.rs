@@ -17,11 +17,10 @@ fn empty_activity(pid: u64, socket_id: String) -> String {
     r#"
     {{
       "activity": null,
-      "pid": {},
-      "socketId": "{}"
+      "pid": {pid},
+      "socketId": "{socket_id}"
     }}
-  "#,
-    pid, socket_id
+  "#
   )
 }
 
@@ -110,7 +109,7 @@ impl ClientConnector {
         let mut ipc_activity = ipc_clone.ipc_event_rec.lock().unwrap().recv().unwrap();
 
         // if there are no client, skip
-        if ipc_clone.clients.lock().unwrap().len() == 0 {
+        if ipc_clone.clients.lock().unwrap().is_empty() {
           log!("[Client Connector] No clients connected, skipping");
           continue;
         }
@@ -170,7 +169,7 @@ impl ClientConnector {
         let proc_activity = proc_event.activity;
 
         // if there are no clients, skip
-        if proc_clone.clients.lock().unwrap().len() == 0 {
+        if proc_clone.clients.lock().unwrap().is_empty() {
           log!("[Client Connector] No clients connected, skipping");
           continue;
         }
@@ -259,7 +258,7 @@ impl ClientConnector {
         let mut ws_event = ws_clone.ws_event_rec.lock().unwrap().recv().unwrap();
 
         // if there are no clients, skip
-        if ws_clone.clients.lock().unwrap().len() == 0 {
+        if ws_clone.clients.lock().unwrap().is_empty() {
           log!("[Client Connector] No clients connected, skipping");
           continue;
         }

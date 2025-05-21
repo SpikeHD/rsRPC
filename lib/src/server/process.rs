@@ -1,13 +1,10 @@
 use rayon::prelude::*;
-use std::path::Path;
 use std::sync::atomic::AtomicBool;
 use std::sync::mpsc;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
 use std::vec;
-use sysinfo::UpdateKind;
-use sysinfo::{ProcessRefreshKind, RefreshKind, System};
 
 use crate::log;
 use crate::ProcessCallback;
@@ -227,30 +224,35 @@ impl ProcessServer {
   pub fn process_list() -> Result<Vec<Exec>, Box<dyn std::error::Error>> {
     use std::fs;
 
-    let mut proc_list = fs::read_dir("/proc")?.filter(|e| {
+    let proc_list = fs::read_dir("/proc")?.filter(|e| {
       if let Ok(entry) = e {
         // Only if we can parse this as a number
         return entry.file_name().to_str().unwrap().parse::<u64>().is_ok();
       }
-  
+
       false
     });
     let mut processes = Vec::new();
-  
-    while let Some(entry) = proc_list.next() {
+
+    for entry in proc_list {
       let entry = entry?;
       let path = entry.path();
-  
+
       if let Ok(cmdline) = fs::read_to_string(path.join("cmdline")) {
         if !cmdline.is_empty() {
           processes.push(Exec {
-            pid: path.file_name().ok_or("Invalid path")?.to_str().ok_or("Invalid path")?.parse::<u64>()?,
+            pid: path
+              .file_name()
+              .ok_or("Invalid path")?
+              .to_str()
+              .ok_or("Invalid path")?
+              .parse::<u64>()?,
             path: cmdline.split('\0').next().unwrap_or("").to_string(),
           });
         }
       }
     }
-  
+
     Ok(processes)
   }
 
@@ -283,10 +285,9 @@ impl ProcessServer {
             let mut new_activity = obj.clone();
 
             if let Some(executables) = &obj.executables {
-
               for executable in executables {
                 if executable.is_launcher {
-                  continue
+                  continue;
                 }
 
                 let exec_path = executable.name.replace('\\', "/").to_lowercase();
@@ -346,13 +347,13 @@ impl ProcessServer {
   }
 }
 
-pub fn name_no_ext(name: &String) -> String {
-  if name.contains('.') {
-    // Split the name by the dot
-    let split: Vec<&str> = name.split('.').collect();
+// pub fn name_no_ext(name: &String) -> String {
+//   if name.contains('.') {
+//     // Split the name by the dot
+//     let split: Vec<&str> = name.split('.').collect();
 
-    return split[0].to_string();
-  }
+//     return split[0].to_string();
+//   }
 
-  name.to_owned()
-}
+//   name.to_owned()
+// }

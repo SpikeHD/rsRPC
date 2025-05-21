@@ -30,10 +30,10 @@ fn get_socket_path() -> String {
   let tmp_dir = if tmp_dir.ends_with('/') {
     tmp_dir
   } else {
-    format!("{}/", tmp_dir)
+    format!("{tmp_dir}/")
   };
 
-  format!("{}discord-ipc", tmp_dir)
+  format!("{tmp_dir}discord-ipc")
 }
 
 #[derive(Clone)]
@@ -143,7 +143,7 @@ impl IpcConnector {
   fn create_socket(tries: Option<u8>) -> Listener {
     let socket_path = get_socket_path();
     let tries = tries.unwrap_or(0);
-    let socket_path = format!("{}-{}", socket_path, tries);
+    let socket_path = format!("{socket_path}-{tries}");
 
     log!("[IPC] Creating socket: {}", socket_path);
 
