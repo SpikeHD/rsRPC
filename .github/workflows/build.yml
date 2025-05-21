@@ -5,12 +5,14 @@ on:
     paths:
       - '.github/workflows/build.yml'
       - 'src/**/*'
+      - 'lib/**/*'
       - 'Cargo.toml'
       - 'Cargo.lock'
   pull_request:
     paths:
       - '.github/workflows/build.yml'
       - 'src/**/*'
+      - 'lib/**/*'
       - 'Cargo.toml'
       - 'Cargo.lock'
 
