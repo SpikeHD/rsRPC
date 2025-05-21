@@ -204,6 +204,10 @@ impl ProcessServer {
 
   #[cfg(not(target_os = "linux"))]
   pub fn process_list() -> Result<Vec<Exec>, Box<dyn std::error::Error>> {
+    use std::path::Path;
+    use sysinfo::{ProcessRefreshKind, RefreshKind, System};
+    use sysinfo::UpdateKind;
+
     let mut processes = Vec::new();
     let sys = System::new_with_specifics(
       RefreshKind::nothing()
