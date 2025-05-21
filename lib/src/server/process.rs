@@ -205,7 +205,8 @@ impl ProcessServer {
     });
   }
 
-  pub fn process_list() -> Vec<Exec> {
+  #[cfg(not(target_os = "linux"))]
+  pub fn process_list() -> Result<Vec<Exec>, Box<dyn std::error::Error>> {
     let mut processes = Vec::new();
     let sys = System::new_with_specifics(
       RefreshKind::nothing()
@@ -214,17 +215,48 @@ impl ProcessServer {
 
     for proc in sys.processes() {
       processes.push(Exec {
-        pid: proc.0.to_string().parse::<u64>().unwrap(),
+        pid: proc.0.to_string().parse::<u64>()?,
         path: proc.1.exe().unwrap_or(Path::new("")).display().to_string(),
       });
     }
 
-    processes
+    Ok(processes)
+  }
+
+  #[cfg(target_os = "linux")]
+  pub fn process_list() -> Result<Vec<Exec>, Box<dyn std::error::Error>> {
+    use std::fs;
+
+    let mut proc_list = fs::read_dir("/proc")?.filter(|e| {
+      if let Ok(entry) = e {
+        // Only if we can parse this as a number
+        return entry.file_name().to_str().unwrap().parse::<u64>().is_ok();
+      }
+  
+      false
+    });
+    let mut processes = Vec::new();
+  
+    while let Some(entry) = proc_list.next() {
+      let entry = entry?;
+      let path = entry.path();
+  
+      if let Ok(cmdline) = fs::read_to_string(path.join("cmdline")) {
+        if !cmdline.is_empty() {
+          processes.push(Exec {
+            pid: path.file_name().ok_or("Invalid path")?.to_str().ok_or("Invalid path")?.parse::<u64>()?,
+            path: cmdline.split('\0').next().unwrap_or("").to_string(),
+          });
+        }
+      }
+    }
+  
+    Ok(processes)
   }
 
   pub fn scan_for_processes(&self) -> Result<Vec<DetectableActivity>, Box<dyn std::error::Error>> {
     let chunks = self.detectable_chunks.lock().unwrap();
-    let processes = ProcessServer::process_list();
+    let processes = ProcessServer::process_list()?;
 
     log!("[Process Scanner] Process scan triggered");
 
@@ -259,8 +291,6 @@ impl ProcessServer {
                 for process in &processes {
                   // Process path (but consistent slashes, so we can compare properly)
                   let process_path = process.path.to_lowercase().replace('\\', "/");
-
-                  //log!("[Process Scanner] Process path: {}", process_path);
 
                   if process_path.contains("obs64") || process_path.contains("streamlabs") {
                     process_scan_state.lock().unwrap().obs_open = true;
