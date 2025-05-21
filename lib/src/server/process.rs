@@ -283,8 +283,11 @@ impl ProcessServer {
             let mut new_activity = obj.clone();
 
             if let Some(executables) = &obj.executables {
+
               for executable in executables {
-                std::thread::sleep(Duration::from_millis(5));
+                if executable.is_launcher {
+                  continue
+                }
 
                 let exec_path = executable.name.replace('\\', "/").to_lowercase();
 
@@ -296,20 +299,11 @@ impl ProcessServer {
                     process_scan_state.lock().unwrap().obs_open = true;
                   }
 
-                  // If the exec_path is, in fact, a path, we can do a partial match
-                  let found = if exec_path.contains('/') {
-                    !process_path.is_empty()
-                      && (process_path.contains(&exec_path)
-                        || name_no_ext(&process_path).contains(&exec_path))
+                  // Checks adapted from [arrpc](https://github.com/OpenAsar/arrpc/blob/2234e9c9111f4c42ebcc3aa6a2215bfd979eef77/src/process/index.js#L54)
+                  let found = if executable.name.starts_with('>') {
+                    exec_path[1..] == process_path
                   } else {
-                    // Get the full name of the exec by getting the filename from the path
-                    let proc_exec_name = process_path
-                      .split('/')
-                      .last()
-                      .unwrap_or("UNKNOWN_GAME_PATH")
-                      .to_string();
-                    // If the exec_path is not a path, we need to do a full match, or else things like "abcd.exe" would match "cd.exe"
-                    proc_exec_name == exec_path || name_no_ext(&proc_exec_name) == exec_path
+                    process_path.contains(&exec_path)
                   };
 
                   if !found {
