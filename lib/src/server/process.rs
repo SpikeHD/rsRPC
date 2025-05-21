@@ -286,7 +286,7 @@ impl ProcessServer {
               for executable in executables {
                 std::thread::sleep(Duration::from_millis(5));
 
-                let exec_path = executable.name.replace('\\', "/");
+                let exec_path = executable.name.replace('\\', "/").to_lowercase();
 
                 for process in &processes {
                   // Process path (but consistent slashes, so we can compare properly)
