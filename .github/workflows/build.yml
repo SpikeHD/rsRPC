@@ -160,7 +160,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: github.event_name != 'schedule'
         with:
-          files: artifacts/**
+          files: rsrpc*.zip
           token: ${{ secrets.GITHUB_TOKEN }}
           # Release name is the tag name
           name: ${{ github.ref_name }} - ${{ github.sha }}
