@@ -4,6 +4,7 @@ use std::{
 };
 
 use interprocess::local_socket::Stream;
+use serde_json::Value;
 
 use crate::{
   cmd::{ActivityCmd, ActivityCmdArgs},
@@ -178,13 +179,12 @@ pub fn handle_stream(ipc: &mut dyn IpcFacilitator, stream: &mut Stream) {
           continue;
         }
 
-        let Ok(mut activity_cmd) = serde_json::from_str::<ActivityCmd>(&message) else {
-          log!("[IPC] Error parsing activity command");
-
-          // Send empty activity
-          send_empty(ipc.event_sender(), current_pid)
-            .unwrap_or_else(|e| log!("[IPC] Error sending empty activity: {}", e));
-          continue;
+        let mut activity_cmd = match serde_json::from_str::<ActivityCmd>(&message) {
+          Ok(cmd) => cmd,
+          Err(err) => {
+            log!("[IPC] Error parsing activity command: {}", err);
+            continue;
+          }
         };
 
         let args = match activity_cmd.args {
@@ -202,7 +202,7 @@ pub fn handle_stream(ipc: &mut dyn IpcFacilitator, stream: &mut Stream) {
         activity_cmd.application_id = Some(ipc.client_id());
 
         ipc.set_pid(args.pid.unwrap_or_default());
-        ipc.set_nonce(activity_cmd.nonce.clone());
+        ipc.set_nonce(activity_cmd.nonce.to_string());
 
         match ipc.event_sender().send(activity_cmd) {
           Ok(_) => (),
@@ -223,7 +223,7 @@ pub fn handle_stream(ipc: &mut dyn IpcFacilitator, stream: &mut Stream) {
             activity: None,
             code: None,
           }),
-          nonce: ipc.nonce(),
+          nonce: Value::String(ipc.nonce()),
         };
 
         match ipc.event_sender().send(activity_cmd) {

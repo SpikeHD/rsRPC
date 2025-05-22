@@ -20,7 +20,7 @@ pub struct ActivityCmd {
   pub args: Option<ActivityCmdArgs>,
   pub data: Option<HashMap<String, String>>,
   pub evt: Option<String>,
-  pub nonce: String,
+  pub nonce: Value,
 }
 
 impl ActivityCmd {
@@ -31,7 +31,7 @@ impl ActivityCmd {
       args: None,
       data: None,
       evt: None,
-      nonce: "".to_string(),
+      nonce: Value::String("".to_string()),
     }
   }
 
