@@ -294,7 +294,7 @@ impl ProcessServer {
                   continue;
                 }
 
-                let exec_path = executable.name.replace('\\', "/").to_lowercase();
+                let exec_path = "/".to_owned() + &executable.name.replace('\\', "/").to_lowercase();
 
                 for process in &processes {
                   // Process path (but consistent slashes, so we can compare properly)
