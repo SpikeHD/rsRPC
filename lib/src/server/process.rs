@@ -25,6 +25,7 @@ pub struct ProcessEventListeners {
 pub struct Exec {
   pid: u64,
   path: String,
+  arguments: Option<String>,
 }
 
 #[derive(Clone)]
@@ -205,8 +206,8 @@ impl ProcessServer {
   #[cfg(not(target_os = "linux"))]
   pub fn process_list() -> Result<Vec<Exec>, Box<dyn std::error::Error>> {
     use std::path::Path;
-    use sysinfo::{ProcessRefreshKind, RefreshKind, System};
     use sysinfo::UpdateKind;
+    use sysinfo::{ProcessRefreshKind, RefreshKind, System};
 
     let mut processes = Vec::new();
     let sys = System::new_with_specifics(
@@ -215,9 +216,20 @@ impl ProcessServer {
     );
 
     for proc in sys.processes() {
+      let mut cmd = proc.1.cmd().iter();
       processes.push(Exec {
         pid: proc.0.to_string().parse::<u64>()?,
         path: proc.1.exe().unwrap_or(Path::new("")).display().to_string(),
+        arguments: if let Some(_) = cmd.next() {
+          Some(
+            cmd
+              .map(|x| x.to_string_lossy())
+              .collect::<Vec<_>>()
+              .join(" "),
+          )
+        } else {
+          None
+        },
       });
     }
 
@@ -244,6 +256,11 @@ impl ProcessServer {
 
       if let Ok(cmdline) = fs::read_to_string(path.join("cmdline")) {
         if !cmdline.is_empty() {
+          let mut cmd_iter = cmdline.split('\0');
+          let (cmd_path, cmd_args) = (
+            cmd_iter.next().unwrap_or("").to_string(),
+            cmd_iter.collect::<Vec<_>>().join(" "),
+          );
           processes.push(Exec {
             pid: path
               .file_name()
@@ -251,7 +268,12 @@ impl ProcessServer {
               .to_str()
               .ok_or("Invalid path")?
               .parse::<u64>()?,
-            path: cmdline.split('\0').next().unwrap_or("").to_string(),
+            path: cmd_path,
+            arguments: if cmd_args.is_empty() {
+              None
+            } else {
+              Some(cmd_args)
+            },
           });
         }
       }
@@ -296,8 +318,11 @@ impl ProcessServer {
 
                 let mut exec_path = executable.name.replace('\\', "/").to_lowercase();
 
-                if !exec_path.contains("/") {
-                  exec_path = format!("/{}", exec_path);
+                // Checks adapted from [arrpc](https://github.com/OpenAsar/arrpc/blob/2234e9c9111f4c42ebcc3aa6a2215bfd979eef77/src/process/index.js#L54)
+                if exec_path.starts_with(">") {
+                  exec_path.replace_range(0..1, "/");
+                } else if !exec_path.starts_with("/") {
+                  exec_path.insert(0, '/');
                 }
 
                 for process in &processes {
@@ -308,15 +333,18 @@ impl ProcessServer {
                     process_scan_state.lock().unwrap().obs_open = true;
                   }
 
-                  // Checks adapted from [arrpc](https://github.com/OpenAsar/arrpc/blob/2234e9c9111f4c42ebcc3aa6a2215bfd979eef77/src/process/index.js#L54)
-                  let found = if executable.name.starts_with('>') {
-                    exec_path[1..] == process_path
-                  } else {
-                    process_path.contains(&exec_path)
-                  };
-
-                  if !found {
+                  if !process_path.ends_with(&exec_path) {
                     continue;
+                  }
+
+                  if let Some(exec_args) = &executable.arguments {
+                    if let Some(process_args) = &process.arguments {
+                      if !process_args.contains(exec_args) {
+                        continue;
+                      }
+                    } else if executable.name.starts_with(">") {
+                      continue;
+                    }
                   }
 
                   new_activity.pid = Some(process.pid);
