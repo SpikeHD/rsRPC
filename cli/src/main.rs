@@ -27,6 +27,7 @@ pub fn main() {
 
   // let 'er run forever
   loop {
-    std::thread::sleep(std::time::Duration::from_millis(10));
+    std::thread::park();
+    std::thread::sleep(std::time::Duration::from_secs(1));
   }
 }
