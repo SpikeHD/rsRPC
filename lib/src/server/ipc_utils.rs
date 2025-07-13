@@ -208,6 +208,17 @@ pub fn handle_stream(ipc: &mut dyn IpcFacilitator, stream: &mut Stream) {
           Ok(_) => (),
           Err(err) => log!("[IPC] Error sending activity command: {}", err),
         }
+
+        // "IPC will echo back every command you send as a response.
+        //  Use this as a lock-step feature to avoid flooding messages.
+        //  Can be used to validate messages such as the Presence or Subscribes."
+        // XXX: arRPC does some editing of the message, setting data.name: "", data.type: 0, evt: null etc... why?
+        let resp = encode(PacketType::Frame, message);
+
+        match stream.write_all(&resp) {
+          Ok(_) => (),
+          Err(err) => log!("[IPC] Error sending connection response: {}", err),
+        }
       }
       PacketType::Close => {
         log!("[IPC] Recieved close");
