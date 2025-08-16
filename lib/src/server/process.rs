@@ -316,15 +316,6 @@ impl ProcessServer {
                   continue;
                 }
 
-                let mut exec_path = executable.name.replace('\\', "/").to_lowercase();
-
-                // Checks adapted from [arrpc](https://github.com/OpenAsar/arrpc/blob/2234e9c9111f4c42ebcc3aa6a2215bfd979eef77/src/process/index.js#L54)
-                if exec_path.starts_with(">") {
-                  exec_path.replace_range(0..1, "/");
-                } else if !exec_path.starts_with("/") {
-                  exec_path.insert(0, '/');
-                }
-
                 for process in &processes {
                   // Process path (but consistent slashes, so we can compare properly)
                   let process_path = process.path.to_lowercase().replace('\\', "/");
@@ -333,7 +324,7 @@ impl ProcessServer {
                     process_scan_state.lock().unwrap().obs_open = true;
                   }
 
-                  if !process_path.ends_with(&exec_path) {
+                  if !process_path.ends_with(&executable.name) {
                     continue;
                   }
 
