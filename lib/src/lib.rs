@@ -1,4 +1,5 @@
 use detection::DetectableActivity;
+use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
 use serde_json::Value;
 use server::{
   client_connector::ClientConnector,
@@ -56,16 +57,14 @@ pub struct RPCServer {
 }
 
 // Make paths consistent, and fix some additional checks
-fn normalize_detectables(
-  detectable: &mut Vec<DetectableActivity>,
-) {
-  for activity in detectable.iter_mut() {
+fn normalize_detectables(detectable: &mut Vec<DetectableActivity>) {
+  detectable.par_iter_mut().for_each(|activity| {
     if let Some(ref mut execs) = activity.executables {
       for exec in execs.iter_mut() {
-        // Replace backslashes with forward slashes
+        // Replace backslashes with forward slashes and lowercase
         exec.name = exec.name.replace('\\', "/").to_lowercase();
 
-        // Checks adapted from [arrpc](https://github.com/OpenAsar/arrpc/blob/2234e9c9111f4c42ebcc3aa6a2215bfd979eef77/src/process/index.js#L54)
+        // Checks adapted from arrpc
         if exec.name.starts_with(">") {
           exec.name.replace_range(0..1, "/");
         } else if !exec.name.starts_with("/") {
@@ -73,7 +72,7 @@ fn normalize_detectables(
         }
       }
     }
-  }
+  });
 }
 
 impl RPCServer {
@@ -99,7 +98,9 @@ impl RPCServer {
       detectable = vec![];
     }
 
+    log!("[RPC Server] Normalizing detectable activities...");
     normalize_detectables(&mut detectable);
+    log!("[RPC Server] Done!");
 
     Ok(Self {
       detectable: Arc::new(Mutex::new(detectable)),

@@ -2,15 +2,18 @@ use clap::{command, Parser};
 use rsrpc::RPCConfig;
 use std::path::PathBuf;
 
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+  #[arg(short, long)]
+  detectable_file: Option<PathBuf>,
+  #[arg(short, long)]
+  no_process_scan: bool,
+}
+
 pub fn main() {
-  #[derive(Parser, Debug)]
-  #[command(author, version, about, long_about = None)]
-  struct Args {
-    #[arg(short, long)]
-    detectable_file: Option<PathBuf>,
-    #[arg(short, long)]
-    no_process_scan: bool,
-  }
+  // When running as a binary, enable logs
+  std::env::set_var("RSRPC_LOGS_ENABLED", "1");
 
   let args = Args::parse();
   let config = RPCConfig {
@@ -27,8 +30,6 @@ pub fn main() {
       .expect("Failed to create RPCServer")
   };
 
-  // When running as a binary, enable logs
-  std::env::set_var("RSRPC_LOGS_ENABLED", "1");
 
   // Starts the other threads (process detector, client connector, etc)
   client.start();
