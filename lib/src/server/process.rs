@@ -203,7 +203,7 @@ impl ProcessServer {
     });
   }
 
-  #[cfg(not(target_os = "linux"))]
+  #[cfg(not(any(target_os = "linux", target_os = "windows")))]
   pub fn process_list() -> Result<Vec<Exec>, Box<dyn std::error::Error>> {
     use std::path::Path;
     use sysinfo::UpdateKind;
@@ -220,7 +220,7 @@ impl ProcessServer {
       processes.push(Exec {
         pid: proc.0.to_string().parse::<u64>()?,
         path: proc.1.exe().unwrap_or(Path::new("")).display().to_string(),
-        arguments: if let Some(_) = cmd.next() {
+        arguments: if cmd.next().is_some() {
           Some(
             cmd
               .map(|x| x.to_string_lossy())
@@ -230,6 +230,95 @@ impl ProcessServer {
         } else {
           None
         },
+      });
+    }
+
+    Ok(processes)
+  }
+
+  #[cfg(target_os = "windows")]
+  pub fn process_list() -> Result<Vec<Exec>, Box<dyn std::error::Error>> {
+    use serde::Deserialize;
+    use wmi::{COMLibrary, WMIConnection};
+
+    let con = WMIConnection::new(COMLibrary::new()?)?;
+
+    #[allow(non_camel_case_types)]
+    #[allow(non_snake_case)]
+    #[derive(Deserialize, Debug)]
+    struct Win32_Process {
+      Name: String,
+      CommandLine: Option<String>,
+      ExecutablePath: Option<String>,
+      ProcessId: u32,
+    }
+
+    fn get_process_path(pid: u32) -> Option<String> {
+      use windows::Win32::Foundation::CloseHandle;
+      use windows::Win32::System::ProcessStatus::GetModuleFileNameExW;
+      use windows::Win32::System::Threading::{
+        OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_VM_READ,
+      };
+      unsafe {
+        // Open the process with necessary access rights
+        if let Ok(process_handle) = OpenProcess(
+          PROCESS_QUERY_INFORMATION | PROCESS_VM_READ,
+          false,
+          pid,
+        )
+        .or(OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid))
+        {
+          // Buffer to store the file name
+          let mut filename_buf = [0u16; 260]; // MAX_PATH is typically 260
+
+          // Get the module file name
+          let filename_len = GetModuleFileNameExW(Some(process_handle), None, &mut filename_buf);
+
+          // Close the process handle
+          let _ = CloseHandle(process_handle);
+
+          if filename_len == 0 {
+            return None;
+          }
+
+          // Convert the UTF-16 buffer to a Rust String
+          let path = String::from_utf16_lossy(&filename_buf[..filename_len as usize]);
+          Some(path)
+        } else {
+          None
+        }
+      }
+    }
+
+    let procs: Vec<Win32_Process> = con.query()?;
+
+    let mut processes = Vec::new();
+
+    for proc in procs {
+      let pid = proc.ProcessId as u64;
+      let (mut path, arguments) = proc
+        .CommandLine
+        .clone()
+        .map(|x| {
+          if let Some(args) = shlex::split(&x) {
+            if !args.is_empty() {
+              return (Some(args[0].clone()), Some(args[1..].join(" ")));
+            }
+          }
+          (None, None)
+        })
+        .unwrap_or((None, None));
+
+      if proc.ExecutablePath.is_some() {
+        path = proc.ExecutablePath.clone();
+      } else if let Some(_path) = get_process_path(proc.ProcessId) {
+        path = Some(_path);
+      }
+
+      processes.push(Exec {
+        pid,
+        path: path.unwrap_or(format!("\\{}", proc.Name)),
+        arguments,
       });
     }
 

@@ -30,7 +30,6 @@ pub fn main() {
       .expect("Failed to create RPCServer")
   };
 
-
   // Starts the other threads (process detector, client connector, etc)
   client.start();
 
