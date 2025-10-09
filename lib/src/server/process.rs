@@ -1,4 +1,4 @@
-use rayon::prelude::*;
+use aho_corasick::{AhoCorasick, PatternID};
 use std::sync::atomic::AtomicBool;
 use std::sync::mpsc;
 use std::sync::Arc;
@@ -36,10 +36,14 @@ pub struct ProcessDetectedEvent {
 #[derive(Clone)]
 pub struct ProcessServer {
   detected_list: Arc<Mutex<Vec<DetectableActivity>>>,
-  detectable_chunks: Arc<Mutex<Vec<Vec<DetectableActivity>>>>,
   custom_detectables: Arc<Mutex<Vec<DetectableActivity>>>,
-  thread_count: u16,
   scanning: Arc<AtomicBool>,
+
+  detectable_indexes: Arc<Mutex<Vec<[usize; 2]>>>,
+  detectable_ac: Arc<Mutex<AhoCorasick>>,
+
+  custom_detectable_indexes: Arc<Mutex<Vec<[usize; 2]>>>,
+  custom_detectable_ac: Arc<Mutex<Option<AhoCorasick>>>,
 
   pub detectable_list: Vec<DetectableActivity>,
   pub event_sender: mpsc::Sender<ProcessDetectedEvent>,
@@ -53,21 +57,40 @@ impl ProcessServer {
   pub fn new(
     detectable: Vec<DetectableActivity>,
     event_sender: mpsc::Sender<ProcessDetectedEvent>,
-    thread_count: u16,
     event_listeners: ProcessEventListeners,
   ) -> Self {
+    log!("[Process Scanner] Building Aho-Corasick patterns for main detectable activities...");
+    let (ac, idx) = build_ac_patterns(&detectable);
+    log!("[Process Scanner] Done!");
+
     ProcessServer {
       scanning: Arc::new(AtomicBool::new(false)),
-      thread_count,
       detected_list: Arc::new(Mutex::new(vec![])),
-      detectable_chunks: Arc::new(Mutex::new(vec![])),
       custom_detectables: Arc::new(Mutex::new(vec![])),
       detectable_list: detectable,
       event_sender,
 
+      // Aho-Corasick matching with detectables mapping
+      detectable_indexes: Arc::new(Mutex::new(idx)),
+      detectable_ac: Arc::new(Mutex::new(ac)),
+      custom_detectable_indexes: Arc::new(Mutex::new(vec![])),
+      custom_detectable_ac: Arc::new(Mutex::new(None)),
+
       // Event listeners
       event_listeners: Arc::new(Mutex::new(event_listeners)),
     }
+  }
+
+  fn update_custom_detectables(&self) {
+    log!("[Process Scanner] Updating Aho-Corasick patterns for custom detectable activities...");
+    let (ac, idx) = build_ac_patterns(&self.custom_detectables.lock().unwrap());
+    if !idx.is_empty() {
+      *self.custom_detectable_ac.lock().unwrap() = Some(ac);
+    } else {
+      *self.custom_detectable_ac.lock().unwrap() = None;
+    }
+    *self.custom_detectable_indexes.lock().unwrap() = idx;
+    log!("[Process Scanner] Done!");
   }
 
   pub fn append_detectables(&mut self, mut detectable: Vec<DetectableActivity>) {
@@ -77,6 +100,7 @@ impl ProcessServer {
       .lock()
       .unwrap()
       .append(&mut detectable);
+    self.update_custom_detectables();
   }
 
   pub fn remove_detectable_by_name(&mut self, name: String) {
@@ -85,31 +109,14 @@ impl ProcessServer {
       .lock()
       .unwrap()
       .retain(|x| x.name != name);
+    self.update_custom_detectables();
   }
 
   pub fn start(&self) {
     let wait_time = Duration::from_secs(10);
     let clone = self.clone();
-    // Evenly split the detectable list into chunks
-    let mut chunks: Vec<Vec<DetectableActivity>> = vec![];
 
-    for _ in 0..self.thread_count {
-      chunks.push(vec![]);
-    }
-
-    let mut i = 0;
-
-    for obj in &self.detectable_list {
-      chunks[i].push(obj.clone());
-
-      i += 1;
-
-      if i >= self.thread_count.into() {
-        i = 0;
-      }
-    }
-
-    *clone.detectable_chunks.lock().unwrap() = chunks;
+    self.update_custom_detectables();
 
     std::thread::spawn(move || {
       // Run the process scan repeatedly (every 3 seconds)
@@ -220,7 +227,7 @@ impl ProcessServer {
       processes.push(Exec {
         pid: proc.0.to_string().parse::<u64>()?,
         path: proc.1.exe().unwrap_or(Path::new("")).display().to_string(),
-        arguments: if let Some(_) = cmd.next() {
+        arguments: if cmd.next().is_some() {
           Some(
             cmd
               .map(|x| x.to_string_lossy())
@@ -283,7 +290,6 @@ impl ProcessServer {
   }
 
   pub fn scan_for_processes(&self) -> Result<Vec<DetectableActivity>, Box<dyn std::error::Error>> {
-    let chunks = self.detectable_chunks.lock().unwrap();
     let processes = ProcessServer::process_list()?;
 
     log!("[Process Scanner] Process scan triggered");
@@ -295,64 +301,69 @@ impl ProcessServer {
 
     let process_scan_state = Mutex::new(ProcessScanState::default());
 
-    let mut detected_list: Vec<DetectableActivity> = (0..self.thread_count + 1)
-      .into_par_iter()
-      .flat_map(|i| {
-        // if this is the last thread, we are supposed to scan the custom detectables
-        let detectable_chunk: &Vec<DetectableActivity> = if self.thread_count == i {
-          &self.custom_detectables.lock().unwrap()
+    let ac = self.detectable_ac.lock().unwrap();
+    let custom_ac = self.custom_detectable_ac.lock().unwrap();
+
+    let mut detected_list: Vec<DetectableActivity> = processes
+      .iter()
+      .filter_map(|process| {
+        // Process path (but consistent slashes, so we can compare properly)
+        let process_path = process.path.to_lowercase().replace('\\', "/");
+
+        if process_path.contains("obs64") || process_path.contains("streamlabs") {
+          process_scan_state.lock().unwrap().obs_open = true;
+        }
+
+        // Aho-Corasick matching
+        let reversed_path: String = process_path.chars().rev().collect();
+        let (obj, exe_index) = if let Some(mat) = ac.find(&reversed_path) {
+          let pattern_id: PatternID = mat.pattern();
+          let exe_index = self.detectable_indexes.lock().unwrap()[pattern_id.as_usize()];
+          (&self.detectable_list[exe_index[0]], exe_index[1])
+        } else if custom_ac.is_some() {
+          let custom_ac = custom_ac.as_ref().unwrap();
+          if let Some(mat) = custom_ac.find(&reversed_path) {
+            let pattern_id: PatternID = mat.pattern();
+            let exe_index = self.custom_detectable_indexes.lock().unwrap()[pattern_id.as_usize()];
+            (
+              &self.custom_detectables.lock().unwrap()[exe_index[0]],
+              exe_index[1],
+            )
+          } else {
+            return None;
+          }
         } else {
-          &chunks[i as usize]
+          return None;
         };
 
-        detectable_chunk
-          .iter()
-          .filter_map(|obj| {
-            let mut new_activity = obj.clone();
+        // Argument checks
+        let mut new_activity = obj.clone();
+        let executable = &obj.executables.as_ref().unwrap()[exe_index];
 
-            if let Some(executables) = &obj.executables {
-              for executable in executables {
-                if executable.is_launcher {
-                  continue;
-                }
+        if let Some(exec_args) = &executable.arguments {
+          // Only require argument checks if executable starts with '>'
+          // like Minecraft: { arguments: "net.minecraft.client.main.Main", is_launcher: false, name: ">java", … }
+          // Other games might provide arguments but not necessary be checked
+          // like Left 4 Dead 2: { arguments: "-game left4dead2", is_launcher: false, name: "left 4 dead 2/left4dead2.exe", … }
+          if executable.name.starts_with(">")
+            && !process
+              .arguments
+              .as_ref()
+              .is_some_and(|args| args.contains(exec_args))
+          {
+            return None;
+          }
+        }
 
-                for process in &processes {
-                  // Process path (but consistent slashes, so we can compare properly)
-                  let process_path = process.path.to_lowercase().replace('\\', "/");
-
-                  if process_path.contains("obs64") || process_path.contains("streamlabs") {
-                    process_scan_state.lock().unwrap().obs_open = true;
-                  }
-
-                  if !process_path.ends_with(&executable.name) {
-                    continue;
-                  }
-
-                  if let Some(exec_args) = &executable.arguments {
-                    if let Some(process_args) = &process.arguments {
-                      if !process_args.contains(exec_args) {
-                        continue;
-                      }
-                    } else if executable.name.starts_with(">") {
-                      continue;
-                    }
-                  }
-
-                  new_activity.pid = Some(process.pid);
-                  new_activity.timestamp = Some(format!(
-                    "{:?}",
-                    std::time::SystemTime::now()
-                      .duration_since(std::time::UNIX_EPOCH)
-                      .unwrap()
-                      .as_millis()
-                  ));
-                  return Some(new_activity);
-                }
-              }
-            }
-            None
-          })
-          .collect::<Vec<DetectableActivity>>()
+        new_activity.pid = Some(process.pid);
+        new_activity.timestamp = Some(format!(
+          "{:?}",
+          std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis()
+        ));
+        Some(new_activity)
       })
       .collect();
 
@@ -372,6 +383,36 @@ impl ProcessServer {
 
     Ok(detected_list)
   }
+}
+
+fn build_ac_patterns(detectables: &[DetectableActivity]) -> (AhoCorasick, Vec<[usize; 2]>) {
+  let mut exe_patterns: Vec<String> = Vec::new();
+  let mut exe_indexes: Vec<[usize; 2]> = Vec::new();
+
+  for (activity_index, activity) in detectables.iter().enumerate() {
+    if let Some(executables) = &activity.executables {
+      for (exe_index, executable) in executables.iter().enumerate() {
+        if executable.is_launcher {
+          continue;
+        }
+
+        // Make paths consistent, and fix some additional checks
+        let mut exec_name = executable.name.replace('\\', "/").to_lowercase();
+
+        // Checks adapted from arrpc, remain the '>' in DetectableActivity for later argument checks
+        if exec_name.starts_with(">") {
+          exec_name.replace_range(0..1, "/");
+        } else if !exec_name.starts_with("/") {
+          exec_name.insert(0, '/');
+        }
+
+        exe_patterns.push(exec_name.chars().rev().collect::<String>());
+        exe_indexes.push([activity_index, exe_index]);
+      }
+    }
+  }
+
+  (AhoCorasick::new(exe_patterns).unwrap(), exe_indexes)
 }
 
 // pub fn name_no_ext(name: &String) -> String {
