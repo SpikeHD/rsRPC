@@ -218,8 +218,11 @@ impl ProcessServer {
 
     let mut processes = Vec::new();
     let sys = System::new_with_specifics(
-      RefreshKind::nothing()
-        .with_processes(ProcessRefreshKind::nothing().with_exe(UpdateKind::Always)),
+      RefreshKind::nothing().with_processes(
+        ProcessRefreshKind::nothing()
+          .with_exe(UpdateKind::Always)
+          .with_cmd(UpdateKind::Always),
+      ),
     );
 
     for proc in sys.processes() {
@@ -227,16 +230,12 @@ impl ProcessServer {
       processes.push(Exec {
         pid: proc.0.to_string().parse::<u64>()?,
         path: proc.1.exe().unwrap_or(Path::new("")).display().to_string(),
-        arguments: if cmd.next().is_some() {
-          Some(
-            cmd
-              .map(|x| x.to_string_lossy())
-              .collect::<Vec<_>>()
-              .join(" "),
-          )
-        } else {
-          None
-        },
+        arguments: cmd.next().map(|_| {
+          cmd
+            .map(|x| x.to_string_lossy())
+            .collect::<Vec<_>>()
+            .join(" ")
+        }),
       });
     }
 
