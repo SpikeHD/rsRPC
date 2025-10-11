@@ -1,6 +1,6 @@
 [package]
 name = "rsrpc-cli"
-version = "0.24.3"
+version = "0.25.0"
 edition = "2018"
 authors = ["spikehd"]
 
