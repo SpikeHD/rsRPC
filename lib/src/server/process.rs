@@ -6,6 +6,9 @@ use std::sync::Mutex;
 use std::time::Duration;
 use std::vec;
 
+#[cfg(not(target_os = "linux"))]
+use sysinfo::{ProcessRefreshKind, RefreshKind, System, UpdateKind};
+
 use crate::log;
 use crate::ProcessCallback;
 
@@ -49,6 +52,9 @@ pub struct ProcessServer {
   pub event_sender: mpsc::Sender<ProcessDetectedEvent>,
 
   event_listeners: Arc<Mutex<ProcessEventListeners>>,
+
+  #[cfg(not(target_os = "linux"))]
+  sysinfo: Arc<Mutex<System>>,
 }
 
 unsafe impl Sync for ProcessServer {}
@@ -78,6 +84,16 @@ impl ProcessServer {
 
       // Event listeners
       event_listeners: Arc::new(Mutex::new(event_listeners)),
+
+      // sysinfo System
+      #[cfg(not(target_os = "linux"))]
+      sysinfo: Arc::new(Mutex::new(System::new_with_specifics(
+        RefreshKind::nothing().with_processes(
+          ProcessRefreshKind::nothing()
+            .with_exe(UpdateKind::Always)
+            .with_cmd(UpdateKind::Always),
+        ),
+      ))),
     }
   }
 
@@ -211,18 +227,17 @@ impl ProcessServer {
   }
 
   #[cfg(not(target_os = "linux"))]
-  pub fn process_list() -> Result<Vec<Exec>, Box<dyn std::error::Error>> {
+  pub fn process_list(&self) -> Result<Vec<Exec>, Box<dyn std::error::Error>> {
     use std::path::Path;
-    use sysinfo::UpdateKind;
-    use sysinfo::{ProcessRefreshKind, RefreshKind, System};
 
     let mut processes = Vec::new();
-    let sys = System::new_with_specifics(
-      RefreshKind::nothing().with_processes(
-        ProcessRefreshKind::nothing()
-          .with_exe(UpdateKind::Always)
-          .with_cmd(UpdateKind::Always),
-      ),
+    let mut sys = self.sysinfo.lock().unwrap();
+    sys.refresh_processes_specifics(
+      sysinfo::ProcessesToUpdate::All,
+      true,
+      ProcessRefreshKind::nothing()
+        .with_exe(UpdateKind::OnlyIfNotSet)
+        .with_cmd(UpdateKind::OnlyIfNotSet),
     );
 
     for proc in sys.processes() {
@@ -289,6 +304,9 @@ impl ProcessServer {
   }
 
   pub fn scan_for_processes(&self) -> Result<Vec<DetectableActivity>, Box<dyn std::error::Error>> {
+    #[cfg(not(target_os = "linux"))]
+    let processes = self.process_list()?;
+    #[cfg(target_os = "linux")]
     let processes = ProcessServer::process_list()?;
 
     log!("[Process Scanner] Process scan triggered");
