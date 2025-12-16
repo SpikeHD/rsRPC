@@ -1,4 +1,4 @@
-use clap::{command, Parser};
+use clap::Parser;
 use rsrpc::RPCConfig;
 use std::path::PathBuf;
 
