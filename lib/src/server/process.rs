@@ -7,7 +7,7 @@ use std::time::Duration;
 use std::vec;
 
 #[cfg(not(target_os = "linux"))]
-use sysinfo::{ProcessRefreshKind, RefreshKind, System, UpdateKind};
+use sysinfo::System;
 
 use crate::log;
 use crate::ProcessCallback;
@@ -87,13 +87,7 @@ impl ProcessServer {
 
       // sysinfo System
       #[cfg(not(target_os = "linux"))]
-      sysinfo: Arc::new(Mutex::new(System::new_with_specifics(
-        RefreshKind::nothing().with_processes(
-          ProcessRefreshKind::nothing()
-            .with_exe(UpdateKind::Always)
-            .with_cmd(UpdateKind::Always),
-        ),
-      ))),
+      sysinfo: Arc::new(Mutex::new(System::new())),
     }
   }
 
@@ -229,11 +223,12 @@ impl ProcessServer {
   #[cfg(not(target_os = "linux"))]
   pub fn process_list(&self) -> Result<Vec<Exec>, Box<dyn std::error::Error>> {
     use std::path::Path;
+    use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, UpdateKind};
 
     let mut processes = Vec::new();
     let mut sys = self.sysinfo.lock().unwrap();
     sys.refresh_processes_specifics(
-      sysinfo::ProcessesToUpdate::All,
+      ProcessesToUpdate::All,
       true,
       ProcessRefreshKind::nothing()
         .with_exe(UpdateKind::OnlyIfNotSet)
