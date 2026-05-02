@@ -37,9 +37,20 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
   // Starts the other threads (process detector, client connector, etc)
   client.start();
 
-  // let 'er run forever
-  loop {
-    std::thread::park();
-    std::thread::sleep(std::time::Duration::from_secs(1));
-  }
+  let (tx, rx) = std::sync::mpsc::channel();
+  ctrlc::set_handler(move || {
+    let _ = tx.send(());
+  })
+  .expect("Error setting Ctrl-C handler");
+
+  println!("Press Ctrl+C to exit");
+  let _ = rx.recv();
+
+  println!("Shutting down...");
+  drop(client);
+
+  // giving them a bit so they can clean up (e.g. drop BoundListener)
+  std::thread::sleep(std::time::Duration::from_millis(100));
+
+  Ok(())
 }

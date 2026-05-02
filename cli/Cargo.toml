@@ -8,6 +8,7 @@ authors = ["spikehd"]
 rsrpc = { path = "../lib" }
 clap = { version = "4.5", features = ["derive", "std"], default-features = false }
 ureq = { version = "3.3", default-features = false, features = ["rustls", "charset"] }
+ctrlc = "3.4"
 
 
 [target.x86_64-unknown-linux-gnu]
