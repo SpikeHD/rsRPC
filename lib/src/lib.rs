@@ -1,5 +1,4 @@
 use detection::DetectableActivity;
-use serde_json::Value;
 use server::{
   client_connector::ClientConnector,
   ipc::IpcConnector,
@@ -48,7 +47,7 @@ pub struct Connectors {
 }
 
 pub struct RPCServer {
-  detectable: Arc<Mutex<Vec<DetectableActivity>>>,
+  detectable: Arc<Mutex<Vec<Arc<DetectableActivity>>>>,
   connectors: Option<Connectors>,
   config: RPCConfig,
 
@@ -60,23 +59,11 @@ impl RPCServer {
     detectable: impl AsRef<str>,
     config: RPCConfig,
   ) -> Result<Self, Box<dyn std::error::Error>> {
-    // Parse as JSON, panic if invalid
-    let detectable: Value =
+    // Parse as DetectableActivity vector, panic if invalid
+    let detectable: Vec<DetectableActivity> =
       serde_json::from_str(detectable.as_ref()).expect("Invalid JSON provided to RPCServer");
 
-    // Turn detectable into a vector of DetectableActivity
-    let detectable_arr = detectable.as_array();
-    let detectable: Vec<DetectableActivity>;
-
-    if let Some(detectable_arr) = detectable_arr {
-      detectable = detectable_arr
-        .iter()
-        .map(|x| serde_json::from_value(x.clone()).expect("Detectable list malformed!"))
-        .collect();
-    } else {
-      log!("Detectable list empty!");
-      detectable = vec![];
-    }
+    let detectable: Vec<Arc<DetectableActivity>> = detectable.into_iter().map(Arc::new).collect();
 
     Ok(Self {
       detectable: Arc::new(Mutex::new(detectable)),

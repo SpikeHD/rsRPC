@@ -3,6 +3,8 @@ use std::{
   sync::{Arc, Mutex},
 };
 
+use serde::Serialize;
+use serde_with::skip_serializing_none;
 use simple_websockets::{Event, EventHub, Message, Responder};
 
 use crate::{
@@ -27,16 +29,40 @@ fn empty_activity(pid: u64, socket_id: String) -> String {
 #[derive(Clone)]
 pub struct ClientConnector {
   pub port: u16,
-  server: Arc<Mutex<EventHub>>,
+  server: Arc<Mutex<Option<EventHub>>>,
   pub clients: Arc<Mutex<HashMap<u64, Responder>>>,
   data_on_connect: String,
 
   pub last_pid: Option<u64>,
   pub active_socket: Option<String>,
 
-  pub ipc_event_rec: Arc<Mutex<std::sync::mpsc::Receiver<ActivityCmd>>>,
-  pub proc_event_rec: Arc<Mutex<std::sync::mpsc::Receiver<ProcessDetectedEvent>>>,
-  pub ws_event_rec: Arc<Mutex<std::sync::mpsc::Receiver<ActivityCmd>>>,
+  pub ipc_event_rec: Arc<Mutex<Option<std::sync::mpsc::Receiver<ActivityCmd>>>>,
+  pub proc_event_rec: Arc<Mutex<Option<std::sync::mpsc::Receiver<ProcessDetectedEvent>>>>,
+  pub ws_event_rec: Arc<Mutex<Option<std::sync::mpsc::Receiver<ActivityCmd>>>>,
+}
+
+#[skip_serializing_none]
+#[derive(Serialize)]
+struct ProcessActivity {
+  pub application_id: String,
+  pub name: String,
+  pub timestamps: ProcessTimestamps,
+  pub r#type: u32,
+  pub metadata: HashMap<String, String>,
+  pub flags: u32,
+}
+
+#[derive(Serialize)]
+struct ProcessTimestamps {
+  pub start: String,
+}
+
+#[derive(Serialize)]
+struct ProcessPayload {
+  pub activity: ProcessActivity,
+  pub pid: u64,
+  #[serde(rename = "socketId")]
+  pub socket_id: String,
 }
 
 impl ClientConnector {
@@ -48,11 +74,11 @@ impl ClientConnector {
     ws_event_rec: std::sync::mpsc::Receiver<ActivityCmd>,
   ) -> ClientConnector {
     ClientConnector {
-      server: Arc::new(Mutex::new(simple_websockets::launch(port).unwrap_or_else(
-        |_| {
+      server: Arc::new(Mutex::new(Some(
+        simple_websockets::launch(port).unwrap_or_else(|_| {
           log!("[Client Connector] Failed to launch websocket server, port may already be in use");
           std::process::exit(1);
-        },
+        }),
       ))),
       clients: Arc::new(Mutex::new(HashMap::new())),
       data_on_connect,
@@ -61,24 +87,30 @@ impl ClientConnector {
       last_pid: None,
       active_socket: None,
 
-      ipc_event_rec: Arc::new(Mutex::new(ipc_event_rec)),
-      proc_event_rec: Arc::new(Mutex::new(proc_event_rec)),
-      ws_event_rec: Arc::new(Mutex::new(ws_event_rec)),
+      ipc_event_rec: Arc::new(Mutex::new(Some(ipc_event_rec))),
+      proc_event_rec: Arc::new(Mutex::new(Some(proc_event_rec))),
+      ws_event_rec: Arc::new(Mutex::new(Some(ws_event_rec))),
     }
   }
 
-  pub fn start(&self) {
-    let clone = self.clone();
+  pub fn start(&mut self) {
+    let server = self
+      .server
+      .lock()
+      .unwrap()
+      .take()
+      .expect("Client connector already started");
     let clients_clone = self.clients.clone();
+    let data_on_connect = self.data_on_connect.clone();
 
     std::thread::spawn(move || {
       loop {
-        match clone.server.lock().unwrap().poll_event() {
+        match server.poll_event() {
           Event::Connect(client_id, responder) => {
             log!("[Client Connector] Client {} connected", client_id);
 
             // Send initial connection data
-            responder.send(Message::Text(clone.data_on_connect.clone()));
+            responder.send(Message::Text(data_on_connect.clone()));
 
             clients_clone.lock().unwrap().insert(client_id, responder);
           }
@@ -91,22 +123,27 @@ impl ClientConnector {
               client_id,
               message
             );
-            let responder = clients_clone.lock().unwrap();
-            let responder = responder.get(&client_id).unwrap();
-            responder.send(message);
+            let clients = clients_clone.lock().unwrap();
+            if let Some(responder) = clients.get(&client_id) {
+              responder.send(message);
+            }
           }
         }
       }
     });
 
     // Create a thread for each reciever
+    let ipc_event_rec = self.ipc_event_rec.lock().unwrap().take().unwrap();
+    let proc_event_rec = self.proc_event_rec.lock().unwrap().take().unwrap();
+    let ws_event_rec = self.ws_event_rec.lock().unwrap().take().unwrap();
+
     let mut ipc_clone = self.clone();
     let mut proc_clone = self.clone();
     let mut ws_clone = self.clone();
 
     std::thread::spawn(move || {
       loop {
-        let mut ipc_activity = ipc_clone.ipc_event_rec.lock().unwrap().recv().unwrap();
+        let mut ipc_activity = ipc_event_rec.recv().unwrap();
 
         // if there are no client, skip
         if ipc_clone.clients.lock().unwrap().is_empty() {
@@ -165,7 +202,7 @@ impl ClientConnector {
 
     std::thread::spawn(move || {
       loop {
-        let proc_event = proc_clone.proc_event_rec.lock().unwrap().recv().unwrap();
+        let proc_event = proc_event_rec.recv().unwrap();
         let proc_activity = proc_event.activity;
 
         // if there are no clients, skip
@@ -216,30 +253,24 @@ impl ClientConnector {
           continue;
         }
 
-        let payload = format!(
-          // I don't even know what half of these fields are for yet
-          r#"
-          {{
-            "activity": {{
-              "application_id": "{}",
-              "name": "{}",
-              "timestamps": {{
-                "start": {}
-              }},
-              "type": 0,
-              "metadata": {{}},
-              "flags": 0
-            }},
-            "pid": {},
-            "socketId": "{}"
-          }}
-          "#,
-          proc_activity.id,
-          proc_activity.name,
-          proc_activity.timestamp.as_ref().unwrap_or(&"0".to_string()),
-          proc_activity.pid.unwrap_or_default(),
-          proc_activity.id
-        );
+        let payload_struct = ProcessPayload {
+          activity: ProcessActivity {
+            application_id: proc_activity.id.clone(),
+            name: proc_activity.name.clone(),
+            timestamps: ProcessTimestamps {
+              start: proc_activity
+                .timestamp
+                .as_ref()
+                .cloned()
+                .unwrap_or_else(|| "0".to_string()),
+            },
+            r#type: 0,
+            metadata: HashMap::new(),
+            flags: 0,
+          },
+          pid: proc_activity.pid.unwrap_or_default(),
+          socket_id: proc_activity.id.clone(),
+        };
 
         proc_clone.last_pid = proc_activity.pid;
         proc_clone.active_socket = Some(proc_activity.id.clone());
@@ -249,13 +280,19 @@ impl ClientConnector {
           proc_activity.name
         );
 
-        proc_clone.send_data(payload);
+        match serde_json::to_string(&payload_struct) {
+          Ok(payload) => proc_clone.send_data(payload),
+          Err(err) => log!(
+            "[Client Connector] Error serializing process activity: {}",
+            err
+          ),
+        }
       }
     });
 
     std::thread::spawn(move || {
       loop {
-        let mut ws_event = ws_clone.ws_event_rec.lock().unwrap().recv().unwrap();
+        let mut ws_event = ws_event_rec.recv().unwrap();
 
         // if there are no clients, skip
         if ws_clone.clients.lock().unwrap().is_empty() {
@@ -309,12 +346,12 @@ impl ClientConnector {
           match serde_json::to_string(&payload) {
             Ok(payload) => {
               log!(
-                "[Client Connector] Sending payload for IPC activity: {:?}",
+                "[Client Connector] Sending payload for WS activity: {:?}",
                 payload
               );
               ws_clone.send_data(payload)
             }
-            Err(err) => log!("[Client Connector] Error serializing IPC activity: {}", err),
+            Err(err) => log!("[Client Connector] Error serializing WS activity: {}", err),
           };
         } else {
           log!("[Client Connector] Invalid activity command, skipping");
@@ -333,6 +370,8 @@ impl ClientConnector {
 
 impl Drop for ClientConnector {
   fn drop(&mut self) {
-    drop(self.server.lock().unwrap());
+    if let Ok(mut server) = self.server.lock() {
+      drop(server.take());
+    }
   }
 }
