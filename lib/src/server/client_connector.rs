@@ -143,7 +143,10 @@ impl ClientConnector {
 
     std::thread::spawn(move || {
       loop {
-        let mut ipc_activity = ipc_event_rec.recv().unwrap();
+        let mut ipc_activity = match ipc_event_rec.recv() {
+          Ok(activity) => activity,
+          Err(_) => break,
+        };
 
         // if there are no client, skip
         if ipc_clone.clients.lock().unwrap().is_empty() {
@@ -202,7 +205,10 @@ impl ClientConnector {
 
     std::thread::spawn(move || {
       loop {
-        let proc_event = proc_event_rec.recv().unwrap();
+        let proc_event = match proc_event_rec.recv() {
+          Ok(event) => event,
+          Err(_) => break,
+        };
         let proc_activity = proc_event.activity;
 
         // if there are no clients, skip
@@ -292,7 +298,10 @@ impl ClientConnector {
 
     std::thread::spawn(move || {
       loop {
-        let mut ws_event = ws_event_rec.recv().unwrap();
+        let mut ws_event = match ws_event_rec.recv() {
+          Ok(event) => event,
+          Err(_) => break,
+        };
 
         // if there are no clients, skip
         if ws_clone.clients.lock().unwrap().is_empty() {
