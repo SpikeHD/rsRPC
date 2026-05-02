@@ -11,7 +11,7 @@ struct Args {
   no_process_scan: bool,
 }
 
-pub fn main() {
+pub fn main() -> Result<(), Box<dyn std::error::Error>> {
   // When running as a binary, enable logs
   std::env::set_var("RSRPC_LOGS_ENABLED", "1");
 
@@ -25,9 +25,13 @@ pub fn main() {
   } else if let Some(file) = args.detectable_file {
     rsrpc::RPCServer::from_file(file, config).expect("Failed to create RPCServer")
   } else {
-    let detectable = reqwest::blocking::get("https://discord.com/api/v9/applications/detectable");
-    rsrpc::RPCServer::from_json_str(detectable.unwrap().text().unwrap(), config)
-      .expect("Failed to create RPCServer")
+    let detectable = ureq::get("https://discord.com/api/v9/applications/detectable")
+      .call()?
+      .into_body()
+      .with_config()
+      .limit(32 * 1024 * 1024)
+      .read_to_string()?;
+    rsrpc::RPCServer::from_json_str(detectable, config).expect("Failed to create RPCServer")
   };
 
   // Starts the other threads (process detector, client connector, etc)
