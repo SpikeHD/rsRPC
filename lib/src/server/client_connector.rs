@@ -142,12 +142,7 @@ impl ClientConnector {
     let mut ws_clone = self.clone();
 
     std::thread::spawn(move || {
-      loop {
-        let mut ipc_activity = match ipc_event_rec.recv() {
-          Ok(activity) => activity,
-          Err(_) => break,
-        };
-
+      while let Ok(mut ipc_activity) = ipc_event_rec.recv() {
         // if there are no client, skip
         if ipc_clone.clients.lock().unwrap().is_empty() {
           log!("[Client Connector] No clients connected, skipping");
@@ -204,11 +199,7 @@ impl ClientConnector {
     });
 
     std::thread::spawn(move || {
-      loop {
-        let proc_event = match proc_event_rec.recv() {
-          Ok(event) => event,
-          Err(_) => break,
-        };
+      while let Ok(proc_event) = proc_event_rec.recv() {
         let proc_activity = proc_event.activity;
 
         // if there are no clients, skip
@@ -297,12 +288,7 @@ impl ClientConnector {
     });
 
     std::thread::spawn(move || {
-      loop {
-        let mut ws_event = match ws_event_rec.recv() {
-          Ok(event) => event,
-          Err(_) => break,
-        };
-
+      while let Ok(mut ws_event) = ws_event_rec.recv() {
         // if there are no clients, skip
         if ws_clone.clients.lock().unwrap().is_empty() {
           log!("[Client Connector] No clients connected, skipping");
