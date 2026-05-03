@@ -1006,7 +1006,7 @@ dependencies = [
 
 [[package]]
 name = "rsrpc"
-version = "0.27.0"
+version = "0.27.1"
 dependencies = [
  "aho-corasick",
  "chrono",
@@ -1021,7 +1021,7 @@ dependencies = [
 
 [[package]]
 name = "rsrpc-cli"
-version = "0.27.0"
+version = "0.27.1"
 dependencies = [
  "clap",
  "ctrlc",
