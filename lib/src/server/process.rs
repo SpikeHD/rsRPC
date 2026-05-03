@@ -330,6 +330,10 @@ impl ProcessServer {
           process_path = process_path.replace('\\', "/");
         }
 
+        if !process_path.starts_with('/') {
+          process_path.insert(0, '/');
+        }
+
         if !obs_open && (process_path.contains("obs64") || process_path.contains("streamlabs")) {
           obs_open = true;
         }
