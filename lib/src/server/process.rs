@@ -33,13 +33,13 @@ pub struct Exec {
 
 #[derive(Clone)]
 pub struct ProcessDetectedEvent {
-  pub activity: DetectableActivity,
+  pub activity: Arc<DetectableActivity>,
 }
 
 #[derive(Clone)]
 pub struct ProcessServer {
-  detected_list: Arc<Mutex<Vec<DetectableActivity>>>,
-  custom_detectables: Arc<Mutex<Vec<DetectableActivity>>>,
+  detected_list: Arc<Mutex<Vec<Arc<DetectableActivity>>>>,
+  custom_detectables: Arc<Mutex<Vec<Arc<DetectableActivity>>>>,
   scanning: Arc<AtomicBool>,
 
   detectable_indexes: Arc<Mutex<Vec<[usize; 2]>>>,
@@ -48,7 +48,7 @@ pub struct ProcessServer {
   custom_detectable_indexes: Arc<Mutex<Vec<[usize; 2]>>>,
   custom_detectable_ac: Arc<Mutex<Option<AhoCorasick>>>,
 
-  pub detectable_list: Vec<DetectableActivity>,
+  pub detectable_list: Vec<Arc<DetectableActivity>>,
   pub event_sender: mpsc::Sender<ProcessDetectedEvent>,
 
   event_listeners: Arc<Mutex<ProcessEventListeners>>,
@@ -61,7 +61,7 @@ unsafe impl Sync for ProcessServer {}
 
 impl ProcessServer {
   pub fn new(
-    detectable: Vec<DetectableActivity>,
+    detectable: Vec<Arc<DetectableActivity>>,
     event_sender: mpsc::Sender<ProcessDetectedEvent>,
     event_listeners: ProcessEventListeners,
   ) -> Self {
@@ -103,13 +103,13 @@ impl ProcessServer {
     log!("[Process Scanner] Done!");
   }
 
-  pub fn append_detectables(&mut self, mut detectable: Vec<DetectableActivity>) {
+  pub fn append_detectables(&mut self, detectable: Vec<DetectableActivity>) {
     // Append to detectable chunks, since that's what is actually scanned
     self
       .custom_detectables
       .lock()
       .unwrap()
-      .append(&mut detectable);
+      .extend(detectable.into_iter().map(Arc::new));
     self.update_custom_detectables();
   }
 
@@ -174,7 +174,7 @@ impl ProcessServer {
           clone
             .event_sender
             .send(ProcessDetectedEvent {
-              activity: DetectableActivity {
+              activity: Arc::new(DetectableActivity {
                 bot_public: None,
                 bot_require_code_grant: None,
                 cover_image: None,
@@ -205,7 +205,7 @@ impl ProcessServer {
                 tags: None,
                 pid: None,
                 timestamp: None,
-              },
+              }),
             })
             .unwrap();
         }
@@ -298,7 +298,9 @@ impl ProcessServer {
     Ok(processes)
   }
 
-  pub fn scan_for_processes(&self) -> Result<Vec<DetectableActivity>, Box<dyn std::error::Error>> {
+  pub fn scan_for_processes(
+    &self,
+  ) -> Result<Vec<Arc<DetectableActivity>>, Box<dyn std::error::Error>> {
     #[cfg(not(target_os = "linux"))]
     let processes = self.process_list()?;
     #[cfg(target_os = "linux")]
@@ -311,29 +313,36 @@ impl ProcessServer {
       return Err("Scanning already in progress".into());
     }
 
-    let process_scan_state = Mutex::new(ProcessScanState::default());
+    let mut obs_open = false;
 
     let ac = self.detectable_ac.lock().unwrap();
     let custom_ac = self.custom_detectable_ac.lock().unwrap();
 
-    let mut detected_list: Vec<DetectableActivity> = processes
+    let mut reversed_path = String::with_capacity(256);
+
+    let mut detected_list: Vec<Arc<DetectableActivity>> = processes
       .iter()
       .filter_map(|process| {
         // Process path (but consistent slashes, so we can compare properly)
-        let process_path = process.path.to_lowercase().replace('\\', "/");
+        let mut process_path = process.path.to_ascii_lowercase();
 
-        if process_path.contains("obs64") || process_path.contains("streamlabs") {
-          process_scan_state.lock().unwrap().obs_open = true;
+        if process_path.contains('\\') {
+          process_path = process_path.replace('\\', "/");
+        }
+
+        if !obs_open && (process_path.contains("obs64") || process_path.contains("streamlabs")) {
+          obs_open = true;
         }
 
         // Aho-Corasick matching
-        let reversed_path: String = process_path.chars().rev().collect();
+        reversed_path.clear();
+        reversed_path.extend(process_path.chars().rev());
+
         let (obj, exe_index) = if let Some(mat) = ac.find(&reversed_path) {
           let pattern_id: PatternID = mat.pattern();
           let exe_index = self.detectable_indexes.lock().unwrap()[pattern_id.as_usize()];
           (&self.detectable_list[exe_index[0]], exe_index[1])
-        } else if custom_ac.is_some() {
-          let custom_ac = custom_ac.as_ref().unwrap();
+        } else if let Some(custom_ac) = custom_ac.as_ref() {
           if let Some(mat) = custom_ac.find(&reversed_path) {
             let pattern_id: PatternID = mat.pattern();
             let exe_index = self.custom_detectable_indexes.lock().unwrap()[pattern_id.as_usize()];
@@ -349,7 +358,6 @@ impl ProcessServer {
         };
 
         // Argument checks
-        let mut new_activity = obj.clone();
         let executable = &obj.executables.as_ref().unwrap()[exe_index];
 
         if let Some(exec_args) = &executable.arguments {
@@ -367,6 +375,7 @@ impl ProcessServer {
           }
         }
 
+        let mut new_activity = (**obj).clone();
         new_activity.pid = Some(process.pid);
         new_activity.timestamp = Some(format!(
           "{:?}",
@@ -375,7 +384,7 @@ impl ProcessServer {
             .unwrap()
             .as_millis()
         ));
-        Some(new_activity)
+        Some(Arc::new(new_activity))
       })
       .collect();
 
@@ -386,7 +395,7 @@ impl ProcessServer {
       .on_process_scan_complete
       .as_ref()
     {
-      callback.lock().unwrap()(process_scan_state.lock().unwrap().clone());
+      callback.lock().unwrap()(ProcessScanState { obs_open });
     }
 
     detected_list.shrink_to_fit();
@@ -397,7 +406,7 @@ impl ProcessServer {
   }
 }
 
-fn build_ac_patterns(detectables: &[DetectableActivity]) -> (AhoCorasick, Vec<[usize; 2]>) {
+fn build_ac_patterns(detectables: &[Arc<DetectableActivity>]) -> (AhoCorasick, Vec<[usize; 2]>) {
   let mut exe_patterns: Vec<String> = Vec::new();
   let mut exe_indexes: Vec<[usize; 2]> = Vec::new();
 

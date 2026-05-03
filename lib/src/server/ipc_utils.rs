@@ -60,8 +60,8 @@ pub struct Handshake {
   pub client_id: String,
 }
 
-pub fn encode(r_type: PacketType, data: String) -> Vec<u8> {
-  let mut buffer: Vec<u8> = Vec::new();
+pub fn encode(r_type: PacketType, data: &str) -> Vec<u8> {
+  let mut buffer: Vec<u8> = Vec::with_capacity(8 + data.len());
 
   // Write the packet type
   buffer.extend_from_slice(&u32::to_le_bytes(r_type as u32));
@@ -166,7 +166,7 @@ pub fn handle_stream(ipc: &mut dyn IpcFacilitator, stream: &mut Stream) {
         ipc.set_client_id(data.client_id);
 
         // Send CONNECTION_RESPONSE
-        let resp = encode(PacketType::Frame, utils::CONNECTION_REPONSE.to_string());
+        let resp = encode(PacketType::Frame, utils::CONNECTION_REPONSE);
 
         match stream.write_all(&resp) {
           Ok(_) => (),
@@ -213,7 +213,7 @@ pub fn handle_stream(ipc: &mut dyn IpcFacilitator, stream: &mut Stream) {
         //  Use this as a lock-step feature to avoid flooding messages.
         //  Can be used to validate messages such as the Presence or Subscribes."
         // XXX: arRPC does some editing of the message, setting data.name: "", data.type: 0, evt: null etc... why?
-        let resp = encode(PacketType::Frame, message);
+        let resp = encode(PacketType::Frame, &message);
 
         match stream.write_all(&resp) {
           Ok(_) => (),
@@ -255,7 +255,7 @@ pub fn handle_stream(ipc: &mut dyn IpcFacilitator, stream: &mut Stream) {
         log!("[IPC] Recieved ping");
 
         // Send a pong
-        let resp = encode(PacketType::Pong, message);
+        let resp = encode(PacketType::Pong, &message);
 
         match stream.write_all(&resp) {
           Ok(_) => (),

@@ -16,7 +16,7 @@ type ActivityResponder = (Option<ActivityCmd>, Responder);
 
 #[derive(Clone)]
 pub struct WebsocketConnector {
-  server: Arc<Mutex<EventHub>>,
+  server: Arc<Mutex<Option<EventHub>>>,
   pub clients: Arc<Mutex<HashMap<u64, ActivityResponder>>>,
 
   event_sender: mpsc::Sender<ActivityCmd>,
@@ -30,7 +30,7 @@ impl WebsocketConnector {
         Ok(server) => {
           log!("[Websocket] Server started on port {}", port);
           return Self {
-            server: Arc::new(Mutex::new(server)),
+            server: Arc::new(Mutex::new(Some(server))),
             clients: Arc::new(Mutex::new(HashMap::new())),
             event_sender,
           };
@@ -45,13 +45,17 @@ impl WebsocketConnector {
     std::process::exit(1);
   }
 
-  pub fn start(&self, set_activity: bool, secondary_events: bool) {
-    let server = self.server.clone();
+  pub fn start(&mut self, set_activity: bool, secondary_events: bool) {
+    let server = self
+      .server
+      .lock()
+      .unwrap()
+      .take()
+      .expect("Websocket server already started");
     let clients = self.clients.clone();
     let event_sender = self.event_sender.clone();
 
     std::thread::spawn(move || {
-      let server = server.lock().unwrap();
       let mut clients = clients.lock().unwrap();
 
       loop {
