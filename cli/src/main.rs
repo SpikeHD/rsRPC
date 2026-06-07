@@ -21,7 +21,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
     ..Default::default()
   };
   let mut client = if args.no_process_scan {
-    rsrpc::RPCServer::from_json_str("{}", config).expect("Failed to create RPCServer")
+    rsrpc::RPCServer::from_json_str("[]", config).expect("Failed to create RPCServer")
   } else if let Some(file) = args.detectable_file {
     rsrpc::RPCServer::from_file(file, config).expect("Failed to create RPCServer")
   } else {
