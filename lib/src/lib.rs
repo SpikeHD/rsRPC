@@ -61,9 +61,13 @@ impl RPCServer {
     detectable: impl AsRef<str>,
     config: RPCConfig,
   ) -> Result<Self, Box<dyn std::error::Error>> {
-    // Parse as DetectableActivity vector, panic if invalid
-    let detectable: Vec<DetectableActivity> =
-      serde_json::from_str(detectable.as_ref()).expect("Invalid JSON provided to RPCServer");
+    let detectable: Vec<DetectableActivity> = match serde_json::from_str(detectable.as_ref()) {
+      Ok(detectable) => detectable,
+      Err(err) => {
+        log!("[RPC Server] Invalid JSON provided to RPCServer: {:?}", err);
+        return Err("Invalid JSON provided to RPCServer".to_string().into());
+      }
+    };
 
     let detectable: Vec<Arc<DetectableActivity>> = detectable.into_iter().map(Arc::new).collect();
 
@@ -84,8 +88,21 @@ impl RPCServer {
    */
   pub fn from_file(file: PathBuf, config: RPCConfig) -> Result<Self, Box<dyn std::error::Error>> {
     // Read the detectable games list from file.
-    let detectable = std::fs::read_to_string(&file)
-      .unwrap_or_else(|_| panic!("RPCServer could not find file: {:?}", file.display()));
+    let detectable = match std::fs::read_to_string(&file) {
+      Ok(detectable) => detectable,
+      Err(err) => {
+        log!(
+          "[RPC Server] Could not read detectable file: {:?} ({})",
+          file.display(),
+          err
+        );
+        return Err(
+          "RPCServer could not find detectable file"
+            .to_string()
+            .into(),
+        );
+      }
+    };
 
     Self::from_json_str(detectable.as_str(), config)
   }
@@ -94,62 +111,45 @@ impl RPCServer {
    * Add new detectable processes on-the-fly. This should be run AFTER start().
    */
   pub fn append_detectables(&mut self, detectable: Vec<DetectableActivity>) {
-    if self.connectors.is_none() {
-      log!("[RPC Server] Cannot append detectables, connectors are not initialized");
-      return;
+    match self.connectors.as_mut() {
+      None => log!("[RPC Server] Cannot append detectables, connectors not initialized"),
+      Some(connectors) => connectors
+        .process_server
+        .lock()
+        .unwrap()
+        .append_detectables(detectable),
     }
-
-    self
-      .connectors
-      .as_mut()
-      .unwrap()
-      .process_server
-      .lock()
-      .unwrap()
-      .append_detectables(detectable);
   }
 
   /**
    * Remove a detectable process by name.
    */
   pub fn remove_detectable_by_name(&mut self, name: String) {
-    if self.connectors.is_none() {
-      log!("[RPC Server] Cannot remove detectable, connectors are not initialized");
-      return;
+    match self.connectors.as_mut() {
+      None => log!("[RPC Server] Cannot remove detectable, connectors not initialized"),
+      Some(connectors) => connectors
+        .process_server
+        .lock()
+        .unwrap()
+        .remove_detectable_by_name(name),
     }
-
-    self
-      .connectors
-      .as_mut()
-      .unwrap()
-      .process_server
-      .lock()
-      .unwrap()
-      .remove_detectable_by_name(name);
   }
 
   /**
    * Manually trigger a scan for processes. This should be run AFTER start().
    */
   pub fn scan_for_processes(&mut self) {
-    if self.connectors.is_none() {
-      log!("[RPC Server] Cannot scan processes, connectors are not initialized");
-      return;
-    }
-
-    let process_server = self
-      .connectors
-      .as_mut()
-      .unwrap()
-      .process_server
-      .lock()
-      .unwrap();
-
-    match process_server.scan_for_processes() {
-      Ok(_) => {}
-      Err(err) => {
-        log!("[RPC Server] Error while scanning processes: {}", err);
-      }
+    match self.connectors.as_mut() {
+      None => log!("[RPC Server] Cannot scan processes, connectors not initialized"),
+      Some(connectors) => match connectors
+        .process_server
+        .lock()
+        .unwrap()
+        .scan_for_processes()
+      {
+        Ok(_) => {}
+        Err(err) => log!("[RPC Server] Error while scanning processes: {}", err),
+      },
     }
   }
 

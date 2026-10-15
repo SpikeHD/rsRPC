@@ -54,7 +54,7 @@ impl Drop for BoundListener {
 
 #[derive(Clone)]
 pub struct IpcConnector {
-  socket: Arc<Mutex<BoundListener>>,
+  socket: Option<Arc<Mutex<BoundListener>>>,
   did_handshake: bool,
   pub client_id: String,
   pub pid: u64,
@@ -98,15 +98,26 @@ impl IpcFacilitator for IpcConnector {
 
   fn recreate_socket(&mut self) {
     // Delete the socket, then create a new one
-    let (socket, path) = Self::create_socket(None);
-    *self.socket.lock().unwrap() = BoundListener { socket, path };
+    match Self::create_socket(None) {
+      Err(err) => log!("[IPC] Could not recreate socket: {}", err),
+      Ok((socket, path)) => match self.socket.as_ref() {
+        None => self.socket = Some(Arc::new(Mutex::new(BoundListener { socket, path }))),
+        Some(arc) => *arc.lock().unwrap() = BoundListener { socket, path },
+      },
+    }
   }
 
   /**
    * Create a new thread that will recieve messages from the socket
    */
   fn start(&mut self) {
-    let weak_socket = Arc::downgrade(&self.socket);
+    let weak_socket = match self.socket.as_ref() {
+      Some(arc) => Arc::downgrade(arc),
+      None => {
+        log!("[IPC] IPC connector is disabled");
+        return;
+      }
+    };
     let event_sender = self.event_sender.clone();
     let client_id = self.client_id.clone();
     let pid = self.pid;
@@ -141,7 +152,7 @@ impl IpcFacilitator for IpcConnector {
             log!("[IPC] Incoming stream...");
 
             let mut clone = IpcConnector {
-              socket: socket_arc.clone(),
+              socket: Some(socket_arc.clone()),
               did_handshake,
               client_id: client_id.clone(),
               pid,
@@ -172,10 +183,19 @@ impl IpcConnector {
    * Create a socket and return a new IpcConnector
    */
   pub fn new(event_sender: mpsc::Sender<ActivityCmd>) -> Self {
-    let (socket, path) = Self::create_socket(None);
+    let socket = match Self::create_socket(None) {
+      Err(err) => {
+        log!(
+          "[IPC] IPC connector disabled, couldn't create socket: {}",
+          err
+        );
+        None
+      }
+      Ok((socket, path)) => Some(Arc::new(Mutex::new(BoundListener { socket, path }))),
+    };
 
     Self {
-      socket: Arc::new(Mutex::new(BoundListener { socket, path })),
+      socket,
       did_handshake: false,
       client_id: "".to_string(),
       pid: 0,
@@ -187,14 +207,21 @@ impl IpcConnector {
   /**
    * ACTUALLY create a socket, and return the handle
    */
-  fn create_socket(tries: Option<u8>) -> (Listener, String) {
+  fn create_socket(tries: Option<u8>) -> Result<(Listener, String), Box<dyn std::error::Error>> {
     let socket_path = get_socket_path();
     let tries = tries.unwrap_or(0);
     let socket_path = format!("{socket_path}-{tries}");
 
     log!("[IPC] Creating socket: {}", socket_path);
 
-    let name = socket_path.clone().to_fs_name::<GenericFilePath>().unwrap();
+    let name = match socket_path.as_str().to_fs_name::<GenericFilePath>() {
+      Err(err) => {
+        log!("[IPC] Socket path is unusable: {}", err);
+        return Err("Invalid IPC socket path".to_string().into());
+      }
+      Ok(name) => name,
+    };
+
     let listener_options = ListenerOptions::new().name(name.clone());
 
     let socket = match listener_options.create_sync() {
@@ -205,7 +232,7 @@ impl IpcConnector {
             "[IPC] Socket {} already in use, checking if stale...",
             socket_path
           );
-          match Stream::connect(name) {
+          match Stream::connect(name.clone()) {
             Ok(_) => {
               log!("[IPC] Socket {} is in use by another process", socket_path);
             }
@@ -215,14 +242,13 @@ impl IpcConnector {
                 socket_path
               );
               let _ = std::fs::remove_file(&socket_path);
-              let listener_options = ListenerOptions::new()
-                .name(socket_path.clone().to_fs_name::<GenericFilePath>().unwrap());
+              let listener_options = ListenerOptions::new().name(name.clone());
               if let Ok(socket) = listener_options.create_sync() {
                 log!(
                   "[IPC] Created IPC socket after cleaning stale: {}",
                   socket_path
                 );
-                return (socket, socket_path);
+                return Ok((socket, socket_path));
               }
             }
           }
@@ -233,13 +259,13 @@ impl IpcConnector {
         if tries < 9 {
           return Self::create_socket(Some(tries + 1));
         } else {
-          panic!("[IPC] Failed to create socket: {}", err);
+          return Err("Failed to create IPC socket".to_string().into());
         }
       }
     };
 
     log!("[IPC] Created IPC socket: {}", socket_path);
 
-    (socket, socket_path)
+    Ok((socket, socket_path))
   }
 }

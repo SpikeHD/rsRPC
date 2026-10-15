@@ -12,7 +12,7 @@ use super::ipc_utils::{handle_stream, IpcFacilitator};
 
 #[derive(Clone)]
 pub struct IpcConnector {
-  socket: Arc<Mutex<Listener>>,
+  socket: Option<Arc<Mutex<Listener>>>,
   did_handshake: bool,
   pub client_id: String,
   pub pid: u64,
@@ -55,8 +55,13 @@ impl IpcFacilitator for IpcConnector {
   }
 
   fn recreate_socket(&mut self) {
-    let socket = Self::create_socket(None);
-    *self.socket.lock().unwrap() = socket;
+    match Self::create_socket(None) {
+      Err(err) => log!("[IPC] Could not recreate socket: {}", err),
+      Ok(socket) => match self.socket.as_ref() {
+        None => self.socket = Some(Arc::new(Mutex::new(socket))),
+        Some(arc) => *arc.lock().unwrap() = socket,
+      },
+    }
   }
 
   /**
@@ -66,22 +71,27 @@ impl IpcFacilitator for IpcConnector {
     let connector = self.clone();
 
     std::thread::spawn(move || {
-      let socket = connector.socket.lock().unwrap();
+      match connector.socket.as_ref() {
+        None => log!("[IPC] IPC connector is disabled"),
+        Some(arc) => {
+          let socket = arc.lock().unwrap();
 
-      for stream in socket.incoming() {
-        // Little baby delay to keep things smooth
-        std::thread::sleep(std::time::Duration::from_millis(5));
+          for stream in socket.incoming() {
+            // Little baby delay to keep things smooth
+            std::thread::sleep(std::time::Duration::from_millis(5));
 
-        let mut clone = connector.clone();
+            let mut clone = connector.clone();
 
-        match stream {
-          Ok(mut stream) => {
-            log!("[IPC] Incoming stream...");
-            std::thread::spawn(move || handle_stream(&mut clone, &mut stream));
-          }
-          Err(err) => {
-            log!("[IPC] Error: {}", err);
-            break;
+            match stream {
+              Ok(mut stream) => {
+                log!("[IPC] Incoming stream...");
+                std::thread::spawn(move || handle_stream(&mut clone, &mut stream));
+              }
+              Err(err) => {
+                log!("[IPC] Error: {}", err);
+                break;
+              }
+            }
           }
         }
       }
@@ -98,8 +108,19 @@ impl IpcConnector {
    * Create a socket and return a new IpcConnector
    */
   pub fn new(event_sender: mpsc::Sender<ActivityCmd>) -> Self {
+    let socket = match Self::create_socket(None) {
+      Err(err) => {
+        log!(
+          "[IPC] IPC connector disabled, could not create pipe: {}",
+          err
+        );
+        None
+      }
+      Ok(socket) => Some(Arc::new(Mutex::new(socket))),
+    };
+
     Self {
-      socket: Arc::new(Mutex::new(Self::create_socket(None))),
+      socket,
       did_handshake: false,
       client_id: "".to_string(),
       pid: 0,
@@ -108,7 +129,7 @@ impl IpcConnector {
     }
   }
 
-  fn create_socket(tries: Option<u8>) -> Listener {
+  fn create_socket(tries: Option<u8>) -> Result<Listener, Box<dyn std::error::Error>> {
     // Define the path to the named pipe
     let pipe_path = r"\\.\pipe\discord-ipc";
 
@@ -118,8 +139,16 @@ impl IpcConnector {
       None => format!("{}-{}", pipe_path, 0),
     };
 
+    let name = match pipe_path.as_str().to_fs_name::<NamedPipe>() {
+      Err(err) => {
+        log!("[IPC] Pipe name is unusable: {}", err);
+        return Err("Invalid IPC pipe name".to_string().into());
+      }
+      Ok(name) => name,
+    };
+
     let listener = ListenerOptions::new()
-      .name(pipe_path.clone().to_fs_name::<NamedPipe>().unwrap())
+      .name(name)
       .security_descriptor(SecurityDescriptor::default());
 
     let socket = match listener.create_sync() {
@@ -130,13 +159,13 @@ impl IpcConnector {
         if tries.unwrap_or(0) < 9 {
           return Self::create_socket(Some(tries.unwrap_or(0) + 1));
         } else {
-          panic!("[IPC] Failed to create socket: {}", err);
+          return Err("Failed to create IPC socket".to_string().into());
         }
       }
     };
 
     log!("[IPC] Created IPC socket: {}", pipe_path);
 
-    socket
+    Ok(socket)
   }
 }

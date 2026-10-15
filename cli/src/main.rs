@@ -23,9 +23,9 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
     ..Default::default()
   };
   let mut client = if args.no_process_scan {
-    rsrpc::RPCServer::from_json_str("[]", config).expect("Failed to create RPCServer")
+    rsrpc::RPCServer::from_json_str("[]", config)
   } else if let Some(file) = args.detectable_file {
-    rsrpc::RPCServer::from_file(file, config).expect("Failed to create RPCServer")
+    rsrpc::RPCServer::from_file(file, config)
   } else {
     let detectable = ureq::get("https://discord.com/api/v9/applications/detectable")
       .call()?
@@ -33,19 +33,20 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
       .with_config()
       .limit(32 * 1024 * 1024)
       .read_to_string()?;
-    rsrpc::RPCServer::from_json_str(detectable, config).expect("Failed to create RPCServer")
-  };
+
+    rsrpc::RPCServer::from_json_str(detectable, config)
+  }?;
 
   // Starts the other threads (process detector, client connector, etc)
   client.start();
 
   let (tx, rx) = std::sync::mpsc::channel();
-  ctrlc::set_handler(move || {
+  match ctrlc::set_handler(move || {
     let _ = tx.send(());
-  })
-  .expect("Error setting Ctrl-C handler");
-
-  println!("Press Ctrl+C to exit");
+  }) {
+    Err(err) => println!("Error setting Ctrl-C handler: {:?}", err),
+    Ok(_) => println!("Press Ctrl+C to exit"),
+  };
   let _ = rx.recv();
 
   println!("Shutting down...");

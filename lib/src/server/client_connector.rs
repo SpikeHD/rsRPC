@@ -9,6 +9,7 @@ use simple_websockets::{Event, EventHub, Message, Responder};
 
 use crate::{
   cmd::{ActivityCmd, ActivityPayload},
+  detection::NULL_ACTIVITY_ID,
   log,
 };
 
@@ -74,12 +75,13 @@ impl ClientConnector {
     ws_event_rec: std::sync::mpsc::Receiver<ActivityCmd>,
   ) -> ClientConnector {
     ClientConnector {
-      server: Arc::new(Mutex::new(Some(
-        simple_websockets::launch(port).unwrap_or_else(|_| {
-          log!("[Client Connector] Failed to launch websocket server, port may already be in use");
-          std::process::exit(1);
-        }),
-      ))),
+      server: Arc::new(Mutex::new(match simple_websockets::launch(port) {
+        Ok(server) => Some(server),
+        Err(_) => {
+          log!("[Client Connector] Failed to launch websocket server on port {}, port may already be in use", port);
+          None
+        }
+      })),
       clients: Arc::new(Mutex::new(HashMap::new())),
       data_on_connect,
       port,
@@ -94,12 +96,13 @@ impl ClientConnector {
   }
 
   pub fn start(&mut self) {
-    let server = self
-      .server
-      .lock()
-      .unwrap()
-      .take()
-      .expect("Client connector already started");
+    let server = match self.server.lock().unwrap().take() {
+      Some(server) => server,
+      None => {
+        log!("[Client Connector] Nothing to start");
+        return;
+      }
+    };
     let clients_clone = self.clients.clone();
     let data_on_connect = self.data_on_connect.clone();
 
@@ -124,130 +127,159 @@ impl ClientConnector {
               message
             );
             let clients = clients_clone.lock().unwrap();
-            if let Some(responder) = clients.get(&client_id) {
-              responder.send(message);
+
+            match clients.get(&client_id) {
+              None => log!(
+                "[Client Connector] Message from unregistered client {}, skipping",
+                client_id
+              ),
+              Some(responder) => {
+                responder.send(message);
+              }
             }
           }
         }
       }
     });
 
-    // Create a thread for each reciever
-    let ipc_event_rec = self.ipc_event_rec.lock().unwrap().take().unwrap();
-    let proc_event_rec = self.proc_event_rec.lock().unwrap().take().unwrap();
-    let ws_event_rec = self.ws_event_rec.lock().unwrap().take().unwrap();
+    // Each source connector gets its own thread, feeding clients with activity
+    self.listen_for_activity("IPC".to_string(), self.ipc_event_rec.clone());
+    self.listen_for_activity("Websocket".to_string(), self.ws_event_rec.clone());
+    self.listen_for_process_events();
+  }
 
-    let mut ipc_clone = self.clone();
-    let mut proc_clone = self.clone();
-    let mut ws_clone = self.clone();
+  /**
+   * Take a source's receiver and spawn the thread that forwards its events.
+   */
+  fn listen_for_activity(
+    &mut self,
+    source: String,
+    source_rec: Arc<Mutex<Option<std::sync::mpsc::Receiver<ActivityCmd>>>>,
+  ) {
+    let event_rec = match source_rec.lock().unwrap().take() {
+      Some(rec) => rec,
+      None => {
+        log!(
+          "[Client Connector] {} receiver already started",
+          source
+        );
+        return;
+      }
+    };
+    let mut clone = self.clone();
 
     std::thread::spawn(move || {
-      while let Ok(mut ipc_activity) = ipc_event_rec.recv() {
-        // if there are no client, skip
-        if ipc_clone.clients.lock().unwrap().is_empty() {
-          log!("[Client Connector] No clients connected, skipping");
-          continue;
-        }
-
-        ipc_activity.fix();
-
-        let mut args = match ipc_activity.args {
-          Some(args) => args,
-          None => {
-            log!("[Client Connector] Invalid activity command, skipping");
-            continue;
-          }
-        };
-
-        if args.activity.is_none() {
-          let pid = args.pid.unwrap_or_default();
-          // Send empty payload
-          let payload = empty_activity(pid, pid.to_string());
-
-          log!("[Client Connector] Sending empty payload");
-
-          ipc_clone.send_data(payload);
-
-          continue;
-        }
-
-        let activity = args.activity.as_mut();
-
-        if let Some(activity) = activity {
-          activity.application_id = ipc_activity.application_id;
-
-          let payload = ActivityPayload {
-            activity: Some(activity.clone()),
-            pid: args.pid,
-            socket_id: Some(args.pid.unwrap_or(0).to_string()),
-          };
-
-          match serde_json::to_string(&payload) {
-            Ok(payload) => {
-              log!(
-                "[Client Connector] Sending payload for IPC activity: {:?}",
-                payload
-              );
-              ipc_clone.send_data(payload)
-            }
-            Err(err) => log!("[Client Connector] Error serializing IPC activity: {}", err),
-          };
-        } else {
-          log!("[Client Connector] Invalid activity command, skipping");
-        }
+      while let Ok(event) = event_rec.recv() {
+        clone.forward_activity(event, source.clone());
       }
     });
+  }
+
+  pub fn forward_activity(&mut self, mut event: ActivityCmd, source: String) {
+    // if there are no clients, skip
+    if self.clients.lock().unwrap().is_empty() {
+      log!("[Client Connector] No clients connected, skipping");
+      return;
+    }
+
+    event.fix();
+
+    let mut args = match event.args {
+      Some(args) => args,
+      None => {
+        log!("[Client Connector] Invalid activity command, skipping");
+        return;
+      }
+    };
+
+    if args.activity.is_none() {
+      let pid = args.pid.unwrap_or_default();
+
+      log!("[Client Connector] Sending empty payload");
+      self.send_data(empty_activity(pid, pid.to_string()));
+
+      return;
+    }
+
+    let activity = args.activity.as_mut();
+
+    if let Some(activity) = activity {
+      activity.application_id = event.application_id;
+
+      let payload = ActivityPayload {
+        activity: Some(activity.clone()),
+        pid: args.pid,
+        socket_id: Some(args.pid.unwrap_or(0).to_string()),
+      };
+
+      match serde_json::to_string(&payload) {
+        Ok(payload) => {
+          log!(
+            "[Client Connector] Sending payload for {} activity: {:?}",
+            source,
+            payload
+          );
+          self.send_data(payload);
+        }
+        Err(err) => log!(
+          "[Client Connector] Error serializing {} activity: {}",
+          source,
+          err
+        ),
+      };
+    } else {
+      log!("[Client Connector] Invalid activity command, skipping");
+    }
+  }
+
+  /**
+   * Forward process-scan events, one "socket" per detected activity.
+   */
+  fn listen_for_process_events(&mut self) {
+    let proc_event_rec = match self.proc_event_rec.lock().unwrap().take() {
+      Some(rec) => rec,
+      None => {
+        log!("[Client Connector] Process receiver already taken, listener already started");
+        return;
+      }
+    };
+    let mut clone = self.clone();
 
     std::thread::spawn(move || {
       while let Ok(proc_event) = proc_event_rec.recv() {
         let proc_activity = proc_event.activity;
 
         // if there are no clients, skip
-        if proc_clone.clients.lock().unwrap().is_empty() {
+        if clone.clients.lock().unwrap().is_empty() {
           log!("[Client Connector] No clients connected, skipping");
           continue;
         }
 
-        if proc_activity.id == "null" {
-          // If our last socket id is empty, skip
-          if proc_clone.active_socket.is_none() {
-            continue;
+        if proc_activity.id == NULL_ACTIVITY_ID {
+          if let Some(socket) = clone.active_socket.clone() {
+            log!("[Client Connector] Sending empty payload");
+            clone.send_data(empty_activity(clone.last_pid.unwrap_or_default(), socket));
+            clone.active_socket = None;
           }
-
-          // Send an empty payload
-          log!("[Client Connector] Sending empty payload");
-
-          let payload = empty_activity(
-            proc_clone.last_pid.unwrap_or_default(),
-            proc_clone.active_socket.as_ref().unwrap().clone(),
-          );
-
-          proc_clone.send_data(payload);
-
-          proc_clone.active_socket = None;
 
           continue;
         }
 
-        // If the active socket is different from the current socket, send an empty payload for the old socket
-        if proc_clone.active_socket != Some(proc_activity.id.clone()) {
-          if proc_clone.active_socket.is_some() {
-            // Send an empty payload
-            log!("[Client Connector] Sending empty payload");
+        // Same activity as last time, nothing new to report
+        let previous_socket = clone.active_socket.clone();
 
-            let payload = empty_activity(
-              proc_clone.last_pid.unwrap_or_default(),
-              proc_clone.active_socket.as_ref().unwrap().clone(),
-            );
-
-            proc_clone.send_data(payload);
-          }
-        } else {
+        if previous_socket == Some(proc_activity.id.clone()) {
           log!(
             "[Client Connector] Already sent payload for activity: {}",
             proc_activity.name
           );
           continue;
+        }
+
+        // A different activity takes over, so the old socket gets cleared first
+        if let Some(socket) = previous_socket {
+          log!("[Client Connector] Sending empty payload");
+          clone.send_data(empty_activity(clone.last_pid.unwrap_or_default(), socket));
         }
 
         let payload_struct = ProcessPayload {
@@ -269,8 +301,8 @@ impl ClientConnector {
           socket_id: proc_activity.id.clone(),
         };
 
-        proc_clone.last_pid = proc_activity.pid;
-        proc_clone.active_socket = Some(proc_activity.id.clone());
+        clone.last_pid = proc_activity.pid;
+        clone.active_socket = Some(proc_activity.id.clone());
 
         log!(
           "[Client Connector] Sending payload for activity: {}",
@@ -278,7 +310,7 @@ impl ClientConnector {
         );
 
         match serde_json::to_string(&payload_struct) {
-          Ok(payload) => proc_clone.send_data(payload),
+          Ok(payload) => clone.send_data(payload),
           Err(err) => log!(
             "[Client Connector] Error serializing process activity: {}",
             err
@@ -286,78 +318,11 @@ impl ClientConnector {
         }
       }
     });
-
-    std::thread::spawn(move || {
-      while let Ok(mut ws_event) = ws_event_rec.recv() {
-        // if there are no clients, skip
-        if ws_clone.clients.lock().unwrap().is_empty() {
-          log!("[Client Connector] No clients connected, skipping");
-          continue;
-        }
-
-        if ws_event.cmd != "SET_ACTIVITY" {
-          // Just send the event as-is, there isn't really anything to go off of here
-          // I will change this if arRPC implements things like INVITE_BROWSER event responses, to ensure compatibility
-          let payload = serde_json::to_string(&ws_event).unwrap_or("".to_string());
-          log!("[Client Connector] Sending payload for WS event");
-          ws_clone.send_data(payload);
-
-          continue;
-        }
-
-        ws_event.fix();
-
-        let mut args = match ws_event.args {
-          Some(args) => args,
-          None => {
-            log!("[Client Connector] Invalid activity command, skipping");
-            continue;
-          }
-        };
-
-        if args.activity.is_none() {
-          let pid = args.pid.unwrap_or_default();
-          // Send empty payload
-          let payload = empty_activity(pid, pid.to_string());
-
-          log!("[Client Connector] Sending empty payload");
-
-          ws_clone.send_data(payload);
-
-          continue;
-        }
-
-        let activity = args.activity.as_mut();
-
-        if let Some(activity) = activity {
-          activity.application_id = ws_event.application_id;
-
-          let payload = ActivityPayload {
-            activity: Some(activity.clone()),
-            pid: args.pid,
-            socket_id: Some(args.pid.unwrap_or(0).to_string()),
-          };
-
-          match serde_json::to_string(&payload) {
-            Ok(payload) => {
-              log!(
-                "[Client Connector] Sending payload for WS activity: {:?}",
-                payload
-              );
-              ws_clone.send_data(payload)
-            }
-            Err(err) => log!("[Client Connector] Error serializing WS activity: {}", err),
-          };
-        } else {
-          log!("[Client Connector] Invalid activity command, skipping");
-        }
-      }
-    });
   }
 
   pub fn send_data(&mut self, data: String) {
     // Send data to all clients
-    for (_, responder) in self.clients.lock().unwrap().iter() {
+    for responder in self.clients.lock().unwrap().values() {
       responder.send(Message::Text(data.clone()));
     }
   }

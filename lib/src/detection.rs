@@ -58,6 +58,43 @@ pub struct DetectableActivity {
   pub timestamp: Option<String>,
 }
 
+pub const NULL_ACTIVITY_ID: &str = "null";
+
+pub fn null_activity() -> DetectableActivity {
+  DetectableActivity {
+    bot_public: None,
+    bot_require_code_grant: None,
+    cover_image: None,
+    description: None,
+    developers: None,
+    executables: None,
+    flags: None,
+    guild_id: None,
+    hook: false,
+    icon: None,
+    id: NULL_ACTIVITY_ID.to_string(),
+    name: "".to_string(),
+    publishers: None,
+    rpc_origins: None,
+    splash: None,
+    third_party_skus: None,
+    type_field: None,
+    verify_key: None,
+    primary_sku_id: None,
+    slug: None,
+    aliases: None,
+    overlay: None,
+    overlay_compatibility_hook: None,
+    privacy_policy_url: None,
+    terms_of_service_url: None,
+    eula_id: None,
+    deeplink_uri: None,
+    tags: None,
+    pid: None,
+    timestamp: None,
+  }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Developer {
   pub id: String,

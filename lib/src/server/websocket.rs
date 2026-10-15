@@ -22,10 +22,33 @@ pub struct WebsocketConnector {
   event_sender: mpsc::Sender<ActivityCmd>,
 }
 
+// Establishes usable ws ports (can also use RSRPC_WS_PORTS="6463-6472" for ex.)
+fn ws_ports() -> (u16, u16) {
+  let range = std::env::var("RSRPC_WS_PORTS").unwrap_or_default();
+  let ports = range
+    .split("-")
+    .map(|part| part.parse::<u16>().unwrap_or(0))
+    .collect::<Vec<u16>>();
+
+  if ports.len() == 2 {
+    let start = ports[0];
+    let end = ports[1];
+
+    if start >= 1024 && end >= start {
+      return (start, end.saturating_add(1));
+    }
+  } else if ports.len() == 1 && ports[0] >= 1024 {
+    return (ports[0], ports[0].saturating_add(1));
+  }
+
+  (6463_u16, 6473_u16)
+}
+
 impl WebsocketConnector {
   pub fn new(event_sender: mpsc::Sender<ActivityCmd>) -> Self {
-    // Try starting websocket server on ports 6463 - 6472
-    for port in 6463..6472 {
+    let (start, end) = ws_ports();
+
+    for port in start..end {
       match simple_websockets::launch(port) {
         Ok(server) => {
           log!("[Websocket] Server started on port {}", port);
@@ -41,17 +64,27 @@ impl WebsocketConnector {
       }
     }
 
-    log!("[Websocket] Failed to start server on any port");
-    std::process::exit(1);
+    log!(
+      "[Websocket] No free port in {}..{}, connector disabled",
+      start,
+      end
+    );
+
+    Self {
+      server: Arc::new(Mutex::new(None)),
+      clients: Arc::new(Mutex::new(HashMap::new())),
+      event_sender,
+    }
   }
 
   pub fn start(&mut self, set_activity: bool, secondary_events: bool) {
-    let server = self
-      .server
-      .lock()
-      .unwrap()
-      .take()
-      .expect("Websocket server already started");
+    let server = match self.server.lock().unwrap().take() {
+      Some(server) => server,
+      None => {
+        log!("[Websocket] Nothing to start");
+        return;
+      }
+    };
     let clients = self.clients.clone();
     let event_sender = self.event_sender.clone();
 
@@ -84,9 +117,13 @@ impl WebsocketConnector {
           }
           Event::Disconnect(client_id) => {
             log!("[Websocket] Client {} disconnected", client_id);
-            let responder = clients.remove(&client_id).unwrap();
-
-            handle_disconnect(client_id, &event_sender, &responder);
+            match clients.remove(&client_id) {
+              None => log!(
+                "[Websocket] Client {} was never registered, skipping",
+                client_id
+              ),
+              Some(responder) => handle_disconnect(client_id, &event_sender, &responder),
+            }
           }
           Event::Message(client_id, message) => {
             log!(
@@ -95,10 +132,21 @@ impl WebsocketConnector {
               message
             );
 
-            let responder = clients.get_mut(&client_id).unwrap();
             let message = match message {
               Message::Text(text) => text,
               _ => "".to_string(),
+            };
+
+            // Ignore messages from clients we never registered
+            let responder = match clients.get_mut(&client_id) {
+              None => {
+                log!(
+                  "[Websocket] Message from unregistered client {}, skipping",
+                  client_id
+                );
+                continue;
+              }
+              Some(responder) => responder,
             };
 
             // If not ActivityCmd, ignore
@@ -184,10 +232,20 @@ fn handle_invite(
   };
 
   // Send the event away!
-  event_sender.send(event.clone()).unwrap();
+  if let Err(err) = event_sender.send(event.clone()) {
+    log!("[Websocket] Event receiver is gone: {:?}", err);
+  }
 
   // Respond
-  responder.send(Message::Text(serde_json::to_string(&response).unwrap()));
+  let payload = match serde_json::to_string(&response) {
+    Err(err) => {
+      log!("[Websocket] Error serializing invite response: {}", err);
+      return;
+    }
+    Ok(payload) => payload,
+  };
+
+  responder.send(Message::Text(payload));
 }
 
 fn handle_set_activity(
@@ -198,7 +256,9 @@ fn handle_set_activity(
   // Set the last activity for the client
   responder.0 = Some(event.clone());
 
-  event_sender.send(event.clone()).unwrap();
+  if let Err(err) = event_sender.send(event.clone()) {
+    log!("[Websocket] Event receiver is gone: {:?}", err);
+  }
 }
 
 fn handle_disconnect(
@@ -214,13 +274,21 @@ fn handle_disconnect(
       data: None,
       evt: None,
       args: Some(ActivityCmdArgs {
-        pid: Some(activity_cmd.args.as_ref().unwrap().pid.unwrap_or_default()),
+        pid: Some(
+          activity_cmd
+            .args
+            .as_ref()
+            .and_then(|args| args.pid)
+            .unwrap_or_default(),
+        ),
         activity: None,
         code: None,
       }),
       nonce: activity_cmd.nonce.clone(),
     };
 
-    event_sender.send(activity_cmd).unwrap();
+    if let Err(err) = event_sender.send(activity_cmd) {
+      log!("[Websocket] Event receiver is gone: {:?}", err);
+    }
   }
 }
