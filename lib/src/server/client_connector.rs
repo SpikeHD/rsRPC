@@ -159,10 +159,7 @@ impl ClientConnector {
     let event_rec = match source_rec.lock().unwrap().take() {
       Some(rec) => rec,
       None => {
-        log!(
-          "[Client Connector] {} receiver already started",
-          source
-        );
+        log!("[Client Connector] {} receiver already started", source);
         return;
       }
     };
